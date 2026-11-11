@@ -52,9 +52,10 @@ enum ScientificFunction: String, CaseIterable {
     }
 }
 
-/// An immediate-execution calculator. Decimal avoids 0.1 + 0.2 artifacts.
+/// Expression calculator with standard precedence. Decimal avoids 0.1 + 0.2 artifacts.
 struct CalculatorModel {
     private(set) var entry = "0"
+    private(set) var completedExpression: String?
     private(set) var selectedOperator: ButtonType?
     private var accumulator: String?
     private var repeatOperator: ButtonType?
@@ -119,6 +120,14 @@ struct CalculatorModel {
         if startsNewEntry, let last = history.first, last.result == entry { return last.expression }
         return nil
     }
+    var primaryDisplay: String {
+        if completedExpression != nil || isError { return displayedValue }
+        return expression == entry ? displayedValue : expression
+    }
+    var livePreview: String? {
+        guard completedExpression == nil, !isError else { return nil }
+        return previewValue ?? (operandExpression != nil ? displayedValue : nil)
+    }
     var editableExpression: String {
         if startsNewEntry, selectedOperator == nil, parents.isEmpty, frame.operations.isEmpty,
            let last = history.first, last.result == entry { return last.expression }
@@ -129,6 +138,7 @@ struct CalculatorModel {
         onAC()
         setValue(normalized)
         startsNewEntry = true
+        completedExpression = expression
         history.insert(HistoryEntry(expression: expression, result: entry), at: 0)
         if history.count > 100 { history.removeLast(history.count - 100) }
     }
@@ -168,6 +178,7 @@ struct CalculatorModel {
     var computedValue: Double { Double(normalizedEntry) ?? 0 }
 
     mutating func onTypeNumber(_ number: Int) {
+        completedExpression = nil
         guard (0...9).contains(number) else { return }
         prepareEntry()
         entryIsEmpty = false
@@ -183,6 +194,7 @@ struct CalculatorModel {
         else { entry += String(number) }
     }
     mutating func onTypeDot() {
+        completedExpression = nil
         prepareEntry()
         entryIsEmpty = false
         if !entry.contains(".") && !entry.contains("e") { entry += "." }
@@ -198,6 +210,7 @@ struct CalculatorModel {
     }
 
     mutating func onScientific(_ function: ScientificFunction) {
+        completedExpression = nil
         if isError {
             guard [.pi, .e, .random].contains(function) else { return }
             onAC()
@@ -276,23 +289,13 @@ struct CalculatorModel {
     }
 
     mutating func onSelectOperator(_ operation: ButtonType) {
+        completedExpression = nil
         guard operation.isOperation, !isError else { return }
-        if isScientificMode || !parents.isEmpty || !frame.operations.isEmpty {
-            selectScientificOperator(operation)
-            return
-        }
-        if let previous = selectedOperator, let left = accumulator, !startsNewEntry {
-            guard let result = calculate(left, previous, value) else { fail(); return }
-            setValue(result)
-        }
-        accumulator = value
-        basicExpression = entry + operation.symbol
-        operandExpression = nil
-        selectedOperator = operation
-        startsNewEntry = true
-        repeatOperator = nil
-        repeatOperand = nil
+        // Basic and scientific layouts share the same expression evaluator so the
+        // visible expression, editable expression, preview and result agree.
+        selectScientificOperator(operation)
     }
+
     mutating func onCalculate() {
         let original: String
         if selectedOperator == nil, parents.isEmpty, frame.operations.isEmpty,
@@ -302,6 +305,7 @@ struct CalculatorModel {
         let shouldRecord = !isError
         performCalculate()
         if shouldRecord && !isError {
+            completedExpression = original
             history.insert(HistoryEntry(expression: original, result: entry), at: 0)
             if history.count > 100 { history.removeLast(history.count - 100) }
         }
@@ -346,6 +350,7 @@ struct CalculatorModel {
         startsNewEntry = true
     }
     mutating func onPlusMinus() {
+        completedExpression = nil
         guard !isError else { return }
         operandExpression = nil
         if let index = entry.firstIndex(of: "e") {
@@ -360,10 +365,11 @@ struct CalculatorModel {
         startsNewEntry = false
     }
     mutating func onPercentage() {
+        completedExpression = nil
         guard !isError else { return }
         operandExpression = nil
         guard var result = calculate(value, .Divide, "100") else { fail(); return }
-        let left = isScientificMode ? frame.values.last : accumulator
+        let left = frame.values.last ?? accumulator
         if let operation = selectedOperator, [.Plus, .Minus].contains(operation), let left {
             guard let relative = calculate(left, .Multiply, result) else { fail(); return }
             result = relative
@@ -372,6 +378,7 @@ struct CalculatorModel {
         startsNewEntry = false
     }
     mutating func onDelete() {
+        completedExpression = nil
         replaceEntryOnDigit = false
         operandExpression = nil
         if isError { onAC(); return }
@@ -394,6 +401,7 @@ struct CalculatorModel {
         // Reject partial parses, NaN, infinity, and arbitrary pasted text.
         guard normalized.range(of: #"^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?$"#, options: .regularExpression) != nil,
               let parsed = Double(normalized), parsed.isFinite else { return }
+        completedExpression = nil
         if isError { onAC() }
         operandExpression = nil
         entryIsEmpty = false
@@ -408,7 +416,7 @@ struct CalculatorModel {
         if isError { onAC() }
         operandExpression = nil
         if startsNewEntry || replaceEntryOnDigit { entry = "0"; startsNewEntry = false; replaceEntryOnDigit = false }
-        if selectedOperator == nil { repeatOperator = nil; repeatOperand = nil; basicExpression = "" }
+        if selectedOperator == nil { basicExpression = "" }
     }
     private mutating func setValue(_ value: String) {
         guard let number = Double(value), number.isFinite else { fail(); return }
@@ -462,6 +470,7 @@ struct CalculatorModel {
     }
 
     mutating func onExponent() {
+        completedExpression = nil
         guard !isError else { return }
         if startsNewEntry && selectedOperator != nil { entry = "1" }
         guard !entry.lowercased().contains("e") else { return }
@@ -470,6 +479,7 @@ struct CalculatorModel {
         replaceEntryOnDigit = false
     }
     mutating func onClearEntry() {
+        completedExpression = nil
         if isError { onAC(); return }
         entry = "0"
         operandExpression = nil
@@ -494,6 +504,7 @@ struct CalculatorModel {
         replaceEntryOnDigit = true
     }
     mutating func onMemoryRecall() {
+        completedExpression = nil
         if isError { onAC() }
         entry = memory
         entryIsEmpty = false
@@ -546,6 +557,7 @@ struct CalculatorModel {
         repeatOperand = nil
     }
     mutating func onOpenParenthesis() {
+        completedExpression = nil
         guard !isError else { return }
         // Adjacent completed operands imply multiplication.
         if !startsNewEntry && (entry != "0" || groupJustClosed) { selectScientificOperator(.Multiply) }
@@ -560,6 +572,7 @@ struct CalculatorModel {
         groupJustClosed = false
     }
     mutating func onCloseParenthesis() {
+        completedExpression = nil
         guard !isError, !parents.isEmpty else { return }
         let innerExpression = frame.expression + (operandExpression ?? entry)
         let function = frame.function

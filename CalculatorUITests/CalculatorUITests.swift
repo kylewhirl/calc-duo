@@ -9,7 +9,7 @@ final class CalculatorUITests: XCTestCase {
             XCTAssertGreaterThanOrEqual(frame.minX, viewport.minX + 15, button.identifier, file: file, line: line)
             XCTAssertLessThanOrEqual(frame.maxX, viewport.maxX - 15, button.identifier, file: file, line: line)
             XCTAssertGreaterThanOrEqual(frame.minY, viewport.minY, button.identifier, file: file, line: line)
-            XCTAssertLessThanOrEqual(frame.maxY, viewport.maxY - 15, button.identifier, file: file, line: line)
+            XCTAssertLessThanOrEqual(frame.maxY, viewport.maxY - 3, button.identifier, file: file, line: line)
         }
     }
     func testGridAndBasicInteraction() {
@@ -37,17 +37,38 @@ final class CalculatorUITests: XCTestCase {
         let first = app.buttons["key_Backspace"].frame
         let last = app.buttons["key_Divide"].frame
         if abs(app.frame.width - 466) < 1 {
-            XCTAssertEqual(first.width, 236.0 / 3, accuracy: 1)
+            XCTAssertGreaterThan(first.width, 74)
             XCTAssertEqual(last.maxX, app.frame.maxX - 16, accuracy: 1)
         }
         app.buttons["key_Number7"].tap(); app.buttons["key_Plus"].tap(); app.buttons["key_Number5"].tap()
-        XCTAssertEqual(app.staticTexts["calculator_display"].value as? String, "12")
+        XCTAssertEqual(app.staticTexts["calculator_display"].value as? String, "7+5")
+        XCTAssertEqual(app.staticTexts["calculator_preview"].label, "= 12")
+        XCTAssertFalse(app.staticTexts["calculator_expression"].exists)
         app.buttons["key_Calculate"].tap()
         XCTAssertEqual(app.staticTexts["calculator_display"].value as? String, "12")
         app.buttons["key_AC"].tap(); app.buttons["key_Number1"].tap(); app.buttons["key_Number2"].tap(); app.buttons["key_Backspace"].tap()
         XCTAssertEqual(app.staticTexts["calculator_display"].value as? String, "1")
         app.buttons["key_AC"].tap()
         let attachment = XCTAttachment(screenshot: app.screenshot()); attachment.name = "Calculator Duo four-column layout"; attachment.lifetime = .keepAlways; add(attachment)
+    }
+    func testLongExpressionScrollPreservesInput() {
+        let app = XCUIApplication(); app.launchArguments = ["-leftHandedLayout", "NO"]; app.launch()
+        XCUIDevice.shared.orientation = .portrait
+        app.buttons["key_AC"].tap(); app.buttons["key_AC"].tap()
+        for _ in 0..<5 {
+            for digit in ["1", "2", "3", "4"] { app.buttons["key_Number" + digit].tap() }
+            app.buttons["key_Plus"].tap()
+        }
+        app.buttons["key_Number5"].tap()
+        let expected = "1234+1234+1234+1234+1234+5"
+        let display = app.staticTexts["calculator_display"]
+        XCTAssertEqual(display.value as? String, expected)
+        display.swipeRight(); display.swipeLeft()
+        XCTAssertEqual(display.value as? String, expected)
+        XCTAssertFalse(app.textFields["expression_editor"].exists)
+        app.buttons["key_Calculate"].tap()
+        XCTAssertEqual(display.value as? String, "6,175")
+        XCTAssertEqual(app.staticTexts["calculator_expression"].value as? String, expected)
     }
     func testRotationAndRepeatedClear() {
         let app = XCUIApplication(); app.launchArguments = ["-leftHandedLayout", "NO"]; app.launch()
@@ -60,9 +81,9 @@ final class CalculatorUITests: XCTestCase {
         app.buttons["key_AC"].tap()
         app.buttons["key_Number3"].tap(); app.buttons["key_Number0"].tap()
         app.buttons["science_sin"].tap()
-        XCTAssertEqual(app.staticTexts["calculator_display"].value as? String, "0.5")
+        XCTAssertEqual(app.staticTexts["calculator_preview"].label, "= 0.5")
         app.buttons["science_square"].tap()
-        XCTAssertEqual(app.staticTexts["calculator_display"].value as? String, "0.25")
+        XCTAssertEqual(app.staticTexts["calculator_preview"].label, "= 0.25")
         app.buttons["angle_unit"].tap()
         XCTAssertEqual(app.buttons["angle_unit"].label, "Deg")
         app.buttons["angle_unit"].tap()
@@ -88,7 +109,8 @@ final class CalculatorUITests: XCTestCase {
         app.buttons["key_AC"].tap(); app.buttons["key_AC"].tap()
         app.buttons["key_Number2"].tap(); app.buttons["key_Plus"].tap()
         app.buttons["key_Number3"].tap(); app.buttons["key_Multiply"].tap(); app.buttons["key_Number4"].tap()
-        XCTAssertEqual(app.staticTexts["calculator_display"].value as? String, "14")
+        XCTAssertEqual(app.staticTexts["calculator_display"].value as? String, "2+3×4")
+        XCTAssertEqual(app.staticTexts["calculator_preview"].label, "= 14")
         app.buttons["key_Calculate"].tap()
         app.buttons["science_memory_add"].tap()
         app.buttons["key_AC"].tap(); app.buttons["key_AC"].tap()
@@ -100,7 +122,7 @@ final class CalculatorUITests: XCTestCase {
         XCTAssertEqual(app.staticTexts["calculator_display"].value as? String, "2e3")
         app.buttons["key_AC"].tap(); app.buttons["key_AC"].tap()
         app.buttons["key_Number3"].tap(); app.buttons["science_second"].tap(); app.buttons["science_pow10"].tap()
-        XCTAssertEqual(app.staticTexts["calculator_display"].value as? String, "8")
+        XCTAssertEqual(app.staticTexts["calculator_preview"].label, "= 8")
         app.buttons["science_second"].tap()
         app.buttons["calculator_history"].tap()
         XCTAssertTrue(app.buttons["history.close"].waitForExistence(timeout: 3))

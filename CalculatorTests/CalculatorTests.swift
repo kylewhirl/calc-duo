@@ -29,10 +29,11 @@ final class CalculatorTests: XCTestCase {
         model.onAC(); enter("5", into: &model); model.onPlusMinus(); model.onSelectOperator(.Multiply); enter("3", into: &model); model.onCalculate()
         XCTAssertEqual(model.displayedValue, "−15")
     }
-    func testSequentialOperationsAndReplacement() {
+    func testExpressionPrecedenceAndOperatorReplacement() {
         var model = CalculatorModel()
         enter("2", into: &model); model.onSelectOperator(.Plus); enter("3", into: &model); model.onSelectOperator(.Multiply); enter("4", into: &model); model.onCalculate()
-        XCTAssertEqual(model.displayedValue, "20")
+        XCTAssertEqual(model.displayedValue, "14")
+        XCTAssertEqual(model.completedExpression, "2+3×4")
         model.onAC(); enter("8", into: &model); model.onSelectOperator(.Plus); model.onSelectOperator(.Divide); enter("2", into: &model); model.onCalculate()
         XCTAssertEqual(model.displayedValue, "4")
     }
@@ -41,7 +42,15 @@ final class CalculatorTests: XCTestCase {
         enter("2", into: &model); model.onSelectOperator(.Plus); enter("3", into: &model); model.onCalculate(); model.onCalculate()
         XCTAssertEqual(model.displayedValue, "8")
         enter("9", into: &model); model.onCalculate()
-        XCTAssertEqual(model.displayedValue, "9")
+        XCTAssertEqual(model.displayedValue, "12")
+        XCTAssertEqual(model.completedExpression, "9+3")
+    }
+    func testRejectedPastePreservesCompletedExpression() {
+        var model = CalculatorModel()
+        enter("2", into: &model); model.onSelectOperator(.Plus); enter("3", into: &model); model.onCalculate()
+        model.onPaste("not a number")
+        XCTAssertEqual(model.completedExpression, "2+3")
+        XCTAssertEqual(model.primaryDisplay, "5")
     }
     func testDecimalAndTrailingZeros() {
         var model = CalculatorModel()
@@ -89,12 +98,14 @@ final class CalculatorTests: XCTestCase {
         XCTAssertEqual(Set(ControlPanel.rows.flatMap { $0 }).count, 20)
         XCTAssertEqual(ControlPanel.rows.map { $0[3] }, [.Divide, .Multiply, .Minus, .Plus, .Calculate])
     }
-    func testDuoKeepsReferenceDiameter() {
-        let layout = CalculatorLayout(availableSize: CGSize(width: 466, height: 620))
-        XCTAssertEqual(layout.buttonSize, 236.0 / 3, accuracy: 0.01)
-        XCTAssertEqual(layout.gap, 10, accuracy: 0.01)
-        XCTAssertEqual(layout.width, 344.6667, accuracy: 0.01)
-        XCTAssertLessThan(layout.height + 105, 620)
+    func testDuoMaximizesKeysWithinDisplayAndSafeMargins() {
+        let size = CGSize(width: 466, height: 682)
+        let layout = CalculatorLayout(availableSize: size)
+        XCTAssertGreaterThan(layout.buttonSize, 236.0 / 3)
+        XCTAssertEqual(layout.buttonSize, min((size.width - 32 - 3 * layout.gap) / 4,
+                         (size.height - 52 - CalculatorLayout.bottomPadding - 5.5 * layout.gap) / 6.25), accuracy: 0.01)
+        XCTAssertEqual(CalculatorLayout.bottomPadding, 4)
+        XCTAssertLessThanOrEqual(layout.contentHeight + 52 + CalculatorLayout.bottomPadding, size.height + 0.01)
     }
     func testResizingKeepsFiveRowsOnscreen() {
         for size in [CGSize(width: 393, height: 759), CGSize(width: 466, height: 620), CGSize(width: 678, height: 400), CGSize(width: 768, height: 1000)] {
@@ -200,7 +211,7 @@ final class ScientificLayoutTests: XCTestCase {
             let layout = CalculatorLayout(availableSize: size, scientific: true)
             XCTAssertGreaterThan(layout.buttonSize, 0)
             XCTAssertLessThanOrEqual(layout.panelWidth + 32, size.width + 0.001)
-            XCTAssertLessThanOrEqual(layout.contentHeight + 68, size.height + 0.001)
+            XCTAssertLessThanOrEqual(layout.contentHeight + 52 + CalculatorLayout.bottomPadding, size.height + 0.001)
         }
     }
 }
@@ -212,7 +223,7 @@ final class ViewportBoundsTests: XCTestCase {
                 for scientific in [false, true] {
                     let layout = CalculatorLayout(availableSize: CGSize(width: width, height: height), scientific: scientific)
                     let totalWidth = layout.panelWidth + 32
-                    let totalHeight = layout.contentHeight + 68
+                    let totalHeight = layout.contentHeight + 52 + CalculatorLayout.bottomPadding
                     XCTAssertLessThanOrEqual(totalWidth, width + 0.001)
                     XCTAssertLessThanOrEqual(totalHeight, height + 0.001)
                     XCTAssertGreaterThan(layout.buttonSize, 0)
@@ -544,9 +555,37 @@ final class FinalEditorBoundaryTests: XCTestCase {
             for height in [180.0, 300, 370, 400, 466, 620, 678, 900] {
                 let layout = CalculatorLayout(availableSize: CGSize(width: width, height: height), converting: true)
                 XCTAssertLessThanOrEqual(layout.panelWidth + 32, width + 0.001)
-                XCTAssertLessThanOrEqual(layout.contentHeight + 68, height + 0.001)
+                XCTAssertLessThanOrEqual(layout.contentHeight + 52 + CalculatorLayout.bottomPadding, height + 0.001)
                 XCTAssertGreaterThan(layout.buttonSize, 0)
             }
         }
+    }
+}
+
+final class ExpressionDisplayTests: XCTestCase {
+    func testExpressionIsPrimaryUntilEqualsThenMovesToSubtitle() {
+        var model = CalculatorModel()
+        model.onTypeNumber(7); model.onSelectOperator(.Plus); model.onTypeNumber(5)
+        XCTAssertEqual(model.primaryDisplay, "7+5")
+        XCTAssertEqual(model.livePreview, "12")
+        XCTAssertNil(model.completedExpression)
+        model.onCalculate()
+        XCTAssertEqual(model.primaryDisplay, "12")
+        XCTAssertEqual(model.completedExpression, "7+5")
+        XCTAssertNil(model.livePreview)
+        model.onSelectOperator(.Multiply); model.onTypeNumber(2)
+        XCTAssertNil(model.completedExpression)
+        XCTAssertEqual(model.primaryDisplay, "12×2")
+        model.onCalculate(); XCTAssertEqual(model.primaryDisplay, "24")
+        model.onAC(); XCTAssertNil(model.completedExpression)
+    }
+    func testEditedExpressionCommitsAndNewInputRestoresEntryDisplay() {
+        var model = CalculatorModel()
+        model.commitEditedExpression("2+3×4", result: 14)
+        XCTAssertEqual(model.completedExpression, "2+3×4")
+        XCTAssertEqual(model.primaryDisplay, "14")
+        model.onTypeNumber(8)
+        XCTAssertNil(model.completedExpression)
+        XCTAssertEqual(model.primaryDisplay, "8")
     }
 }
