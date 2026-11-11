@@ -6,7 +6,13 @@ struct CalculatorView: View {
     @AppStorage("leftHandedLayout") private var leftHanded = false
     @AppStorage("calculationHistory") private var storedHistory = Data()
     @State private var showingHistory = false
+    @State private var historyUsesSidebar = false
+    @State private var converting = false
     @State private var second = false
+    @State private var editingExpression = false
+    @State private var expressionText = ""
+    @State private var expressionSelection = NSRange(location: 0, length: 0)
+    @State private var editorError: String? = nil
     @State private var modeOverride: Bool? = nil
     @State private var deviceIsLandscape = UIDevice.current.orientation.isLandscape
 
@@ -18,6 +24,7 @@ struct CalculatorView: View {
         }
     }
     private func onControlPanelClick(_ key: ButtonType) {
+        if editingExpression { onEditorKey(key); return }
         if let digit = key.digit { calculator.onTypeNumber(digit); return }
         if key.isOperation { calculator.onSelectOperator(key); return }
         switch key {
@@ -33,38 +40,60 @@ struct CalculatorView: View {
     var body: some View {
         GeometryReader { geometry in
             let automatic = deviceIsLandscape || CalculatorLayout.usesScientificMode(geometry.size)
-            let scientific = modeOverride ?? automatic
-            let layout = CalculatorLayout(availableSize: geometry.size, scientific: scientific)
+            let scientific = !converting && (modeOverride ?? automatic)
+            let wideHistory = geometry.size.width > geometry.size.height
+            let sidebarWidth = showingHistory && wideHistory ? min(280, geometry.size.width * 0.34) : 0
+            let available = CGSize(width: geometry.size.width - sidebarWidth, height: geometry.size.height)
+            let layout = CalculatorLayout(availableSize: available, scientific: scientific, converting: converting)
+            HStack(spacing: 0) {
+                if sidebarWidth > 0 {
+                    HistoryPanel(history: calculator.history, onRecall: recallHistory, onDelete: { calculator.deleteHistory($0) },
+                                 onClear: { calculator.clearHistory() }, onClose: { showingHistory = false })
+                        .frame(width: sidebarWidth)
+                }
             VStack(spacing: 0) {
-                if scientific {
                     HStack {
-                        Button { showingHistory = true } label: {
-                            Image(systemName: "clock.arrow.circlepath").frame(width: 44, height: 44)
+                        if sidebarWidth == 0 {
+                            Button { historyUsesSidebar = wideHistory; showingHistory = true } label: {
+                                Image(systemName: wideHistory ? "sidebar.left" : "clock")
+                                    .font(.system(size: 23)).frame(width: 48, height: 48)
+                                    .background(Color(hex: 0x242424), in: Circle())
+                                    .overlay(Circle().strokeBorder(.white.opacity(0.15), lineWidth: 0.65))
+                            }
+                            .accessibilityLabel("History").accessibilityIdentifier("calculator_history")
                         }
-                        .accessibilityLabel("History").accessibilityIdentifier("calculator_history")
                         Spacer()
                         Menu {
-                            Button { modeOverride = false } label: { Label("Basic", systemImage: "plus.forwardslash.minus") }
-                            Button { modeOverride = true } label: { Label("Scientific", systemImage: "function") }
-                            Button { modeOverride = nil } label: { Label("Automatic", systemImage: "iphone.gen3.radiowaves.left.and.right") }
+                            Picker("", selection: Binding(get: { scientific }, set: { modeOverride = $0; converting = false })) {
+                                Label("Basic", systemImage: "plus.forwardslash.minus").tag(false)
+                                Label("Scientific", systemImage: "function").tag(true)
+                            }.pickerStyle(.inline)
+                            Toggle(isOn: $leftHanded) { Label("Left-handed", systemImage: "hand.raised") }
+                                .accessibilityIdentifier("left_handed_toggle")
                             Divider()
-                            Toggle("Left-handed", isOn: $leftHanded).accessibilityIdentifier("left_handed_toggle")
+                            Toggle(isOn: $converting) { Label("Convert", systemImage: "arrow.left.arrow.right") }
+                                .accessibilityIdentifier("convert_toggle")
                         } label: {
-                            Image(systemName: "slider.horizontal.3").frame(width: 44, height: 44)
+                            CalculatorModeGlyph().frame(width: 18, height: 26)
+                                .frame(width: 48, height: 48)
+                                .background(Color(hex: 0x242424), in: Circle())
+                                .overlay(Circle().strokeBorder(.white.opacity(0.15), lineWidth: 0.65))
                         }
                         .accessibilityLabel("Calculator mode and settings").accessibilityIdentifier("calculator_settings")
                     }
-                    .font(.system(size: 20)).foregroundStyle(.white)
-                    .padding(.bottom, 8)
-                }
+                    .foregroundStyle(.white)
+                    .padding(.bottom, 4)
                 Spacer(minLength: 0)
                 VStack(spacing: layout.gap * 1.5) {
-                    if scientific {
+                    if converting {
+                        ConversionPanel(input: calculator.entry, onUseValue: { calculator.onPaste($0) })
+                            .frame(height: layout.displayHeight)
+                    } else if scientific || editingExpression {
                         scientificDisplay(layout)
                     } else {
                         DisplayArea(eventCallback: onDisplayAreaClick, currentDisplay: calculator.displayedValue,
-                                    buttonSize: layout.buttonSize, previewValue: calculator.previewValue, scientificAction: { modeOverride = true },
-                                    historyAction: { showingHistory = true })
+                                    buttonSize: layout.buttonSize, previewValue: calculator.previewValue, expression: calculator.displayExpression, editingAction: { beginExpressionEditing(calculator.editableExpression) }, scientificAction: { modeOverride = true },
+                                    historyAction: { historyUsesSidebar = wideHistory; showingHistory = true })
                     }
                     if scientific && layout.stacked {
                         VStack(spacing: layout.gap) {
@@ -83,9 +112,11 @@ struct CalculatorView: View {
             }
             .padding(.horizontal, CalculatorLayout.edgePadding)
             .padding(.bottom, CalculatorLayout.bottomPadding)
-            .frame(width: geometry.size.width, height: geometry.size.height, alignment: .bottom)
+            .frame(width: available.width, height: geometry.size.height, alignment: .bottom)
+            }
             .onChange(of: scientific, initial: true) { _, value in calculator.isScientificMode = value }
             .onChange(of: automatic) { _, _ in modeOverride = nil }
+            .onChange(of: wideHistory, initial: true) { _, value in historyUsesSidebar = value }
         }
         .background(Color.black.ignoresSafeArea()).preferredColorScheme(.dark).statusBarHidden(true)
         .onAppear {
@@ -99,54 +130,153 @@ struct CalculatorView: View {
             let orientation = UIDevice.current.orientation
             if orientation.isLandscape || orientation.isPortrait { deviceIsLandscape = orientation.isLandscape }
         }
-        .sheet(isPresented: $showingHistory) { historyView }
+        .sheet(isPresented: Binding(get: { showingHistory && !historyUsesSidebar }, set: { if !$0 { showingHistory = false } })) { historyView }
+        .onChange(of: expressionText) { _, _ in editorError = nil }
+        .onChange(of: converting) { _, value in if value { editingExpression = false } }
     }
 
     private func scientificDisplay(_ layout: CalculatorLayout) -> some View {
-        let hasPreview = calculator.previewValue != nil || calculator.expression != calculator.entry
-        return VStack(alignment: .trailing, spacing: 2) {
-            Text(hasPreview ? calculator.expression : calculator.displayedValue)
-                .font(.system(size: layout.buttonHeight * 0.72, weight: .light))
-                .lineLimit(1).minimumScaleFactor(0.2)
-                .frame(maxWidth: .infinity, alignment: .trailing)
-                .accessibilityIdentifier(hasPreview ? "calculator_expression" : "calculator_display")
-                .accessibilityValue(hasPreview ? calculator.expression : calculator.displayedValue)
-            if hasPreview {
-            Text(calculator.previewValue ?? calculator.displayedValue)
-                .font(.system(size: layout.buttonHeight * 0.42, weight: .light))
-                .foregroundStyle(.secondary).lineLimit(1).minimumScaleFactor(0.2)
-                .accessibilityIdentifier("calculator_display")
-                .accessibilityLabel("Result").accessibilityValue(calculator.previewValue ?? calculator.displayedValue)
+        VStack(alignment: .trailing, spacing: 2) {
+            if editingExpression {
+                ExpressionField(text: $expressionText, selection: $expressionSelection, editing: $editingExpression,
+                                fontSize: layout.buttonHeight * 0.72, onBeginEditing: {})
+                    .frame(height: min(layout.buttonHeight, layout.displayHeight * 0.6))
+                Text(editorError ?? editingPreview)
+                    .font(.system(size: min(layout.buttonHeight * 0.36, layout.displayHeight * 0.25), weight: .light))
+                    .foregroundColor(editorError == nil ? .secondary : .orange)
+                    .lineLimit(1).minimumScaleFactor(0.2).accessibilityIdentifier("editing_preview")
+            } else {
+                if let expression = calculator.displayExpression {
+                    Text(expression).font(.system(size: layout.buttonHeight * 0.4, weight: .regular))
+                        .foregroundStyle(.secondary).lineLimit(1).minimumScaleFactor(0.2)
+                        .accessibilityIdentifier("calculator_expression")
+                        .onTapGesture { beginExpressionEditing(calculator.editableExpression) }
+                }
+                Text(calculator.previewValue ?? calculator.displayedValue)
+                    .font(.system(size: layout.buttonHeight * 0.92, weight: .light))
+                    .lineLimit(1).minimumScaleFactor(0.2).frame(maxWidth: .infinity, alignment: .trailing)
+                    .accessibilityIdentifier("calculator_display")
+                    .accessibilityLabel("Result").accessibilityValue(calculator.previewValue ?? calculator.displayedValue)
+                    .onTapGesture { beginExpressionEditing(calculator.editableExpression) }
+                    .contextMenu {
+                        Button("Copy", systemImage: "doc.on.doc") { onDisplayAreaClick(.CopyToClipBoard) }
+                        Button("Paste", systemImage: "doc.on.clipboard") { onDisplayAreaClick(.Paste) }
+                    }
             }
         }
         .frame(height: layout.displayHeight, alignment: .bottomTrailing)
-        .contextMenu {
-            Button("Copy", systemImage: "doc.on.doc") { onDisplayAreaClick(.CopyToClipBoard) }
-            Button("Paste", systemImage: "doc.on.clipboard") { onDisplayAreaClick(.Paste) }
+        .overlay(alignment: .bottomLeading) {
+            if layout.scientific && !layout.stacked {
+                Text(calculator.usesDegrees ? "Deg" : "Rad").font(.system(size: 14)).foregroundStyle(.white)
+                    .accessibilityLabel(calculator.usesDegrees ? "Degrees" : "Radians")
+            }
         }
-        .gesture(DragGesture(minimumDistance: 35).onEnded { if abs($0.translation.width) > abs($0.translation.height) { calculator.onDelete() } })
+        .gesture(DragGesture(minimumDistance: 35).onEnded { if abs($0.translation.width) > abs($0.translation.height) { calculator.onDelete() } }, including: editingExpression ? .subviews : .all)
+    }
+    private func recallHistory(_ item: CalculatorModel.HistoryEntry) {
+        calculator.restoreHistory(item.id)
+        beginExpressionEditing(item.expression)
+        showingHistory = false
     }
     private var historyView: some View {
-        NavigationStack {
-            List {
-                if calculator.history.isEmpty { Text("No calculations yet").foregroundStyle(.secondary) }
-                ForEach(calculator.history) { item in
-                    Button {
-                        calculator.restoreHistory(item.id)
-                        showingHistory = false
-                    } label: {
-                        VStack(alignment: .trailing, spacing: 6) {
-                            Text(item.expression).foregroundStyle(.secondary)
-                            Text(item.result).font(.title2).foregroundStyle(.white)
-                        }.frame(maxWidth: .infinity, alignment: .trailing)
-                    }
-                }
+        HistoryPanel(history: calculator.history, onRecall: recallHistory, onDelete: { calculator.deleteHistory($0) },
+                     onClear: { calculator.clearHistory() }, onClose: { showingHistory = false })
+    }
+
+    private var editingPreview: String {
+        do { return "= " + (try ExpressionEvaluator.evaluateResult(expressionText, usesDegrees: calculator.usesDegrees)).formatted }
+        catch let error as ExpressionEvaluator.EvaluationError { return error.isIncomplete ? "…" : "Error" }
+        catch { return "Error" }
+    }
+    private func beginExpressionEditing(_ text: String) {
+        expressionText = text
+        expressionSelection = NSRange(location: text.utf16.count, length: 0)
+        editorError = nil
+        editingExpression = true
+    }
+    private func insertExpression(_ text: String) {
+        let source = expressionText as NSString
+        let location = min(expressionSelection.location, source.length)
+        let length = min(expressionSelection.length, source.length - location)
+        guard source.length - length + text.utf16.count <= 2048 else { return }
+        expressionText = source.replacingCharacters(in: NSRange(location: location, length: length), with: text)
+        expressionSelection = NSRange(location: location + text.utf16.count, length: 0)
+        editorError = nil
+    }
+    private func wrapSelection(_ prefix: String, suffix: String = ")") {
+        let source = expressionText as NSString
+        let location = min(expressionSelection.location, source.length)
+        let length = min(expressionSelection.length, source.length - location)
+        if length > 0 {
+            let selected = source.substring(with: NSRange(location: location, length: length))
+            insertExpression(prefix + selected + suffix)
+        } else { insertExpression(prefix) }
+    }
+    private func onEditorKey(_ key: ButtonType) {
+        if let digit = key.digit { insertExpression(String(digit)); return }
+        switch key {
+        case .Plus: insertExpression("+")
+        case .Minus: insertExpression("−")
+        case .Multiply: insertExpression("×")
+        case .Divide: insertExpression("÷")
+        case .Power: insertExpression("^")
+        case .Dot: insertExpression(".")
+        case .Percentage: insertExpression("%")
+        case .PlusMinus: wrapSelection("−(")
+        case .AC:
+            expressionText = ""; expressionSelection = NSRange(location: 0, length: 0); editorError = nil
+            calculator.onAC()
+        case .Backspace:
+            if !expressionText.isEmpty && expressionSelection.length == 0 && expressionSelection.location > 0 {
+                let source = expressionText as NSString
+                expressionSelection = source.rangeOfComposedCharacterSequence(at: min(expressionSelection.location, source.length) - 1)
             }
-            .navigationTitle("History")
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) { Button("Clear") { calculator.clearHistory() }.disabled(calculator.history.isEmpty) }
-                ToolbarItem(placement: .confirmationAction) { Button("Done") { showingHistory = false } }
+            insertExpression("")
+        case .Calculate:
+            do {
+                let result = try ExpressionEvaluator.evaluateResult(expressionText, usesDegrees: calculator.usesDegrees)
+                calculator.commitEditedExpression(expressionText, result: result.value)
+                editingExpression = false; editorError = nil
+            } catch { editorError = "Check expression" }
+        default: break
+        }
+    }
+    private func onEditorScientific(_ row: Int, _ col: Int) {
+        switch (row, col) {
+        case (0,0): insertExpression("(")
+        case (0,1): insertExpression(")")
+        case (0,2): calculator.onMemoryClear()
+        case (0,3), (0,4):
+            if let result = try? ExpressionEvaluator.evaluateResult(expressionText, usesDegrees: calculator.usesDegrees) {
+                calculator.onPaste(String(result.value))
+                if col == 3 { calculator.onMemoryAdd() } else { calculator.onMemorySubtract() }
             }
+        case (0,5): calculator.onMemoryRecall(); insertExpression(calculator.entry)
+        case (1,0): second.toggle()
+        case (1,1): insertExpression("²")
+        case (1,2): insertExpression("³")
+        case (1,3): insertExpression("^")
+        case (1,4): if second { insertExpression("yˣ") } else { wrapSelection("exp(") }
+        case (1,5): wrapSelection(second ? "pow2(" : "pow10(")
+        case (2,0): wrapSelection("reciprocal(")
+        case (2,1): wrapSelection("sqrt(")
+        case (2,2): wrapSelection("cbrt(")
+        case (2,3): insertExpression("ʸ√x")
+        case (2,4): if second { insertExpression("logᵧ") } else { wrapSelection("ln(") }
+        case (2,5): wrapSelection(second ? "log2(" : "log10(")
+        case (3,0): insertExpression("!")
+        case (3,1): wrapSelection(second ? "asin(" : "sin(")
+        case (3,2): wrapSelection(second ? "acos(" : "cos(")
+        case (3,3): wrapSelection(second ? "atan(" : "tan(")
+        case (3,4): insertExpression("e")
+        case (3,5): insertExpression("E")
+        case (4,0): insertExpression(String(Double.random(in: 0..<1)))
+        case (4,1): wrapSelection(second ? "asinh(" : "sinh(")
+        case (4,2): wrapSelection(second ? "acosh(" : "cosh(")
+        case (4,3): wrapSelection(second ? "atanh(" : "tanh(")
+        case (4,4): insertExpression("π")
+        case (4,5): calculator.usesDegrees.toggle()
+        default: break
         }
     }
 
@@ -187,6 +317,7 @@ struct CalculatorView: View {
         }
     }
     private func scientificTap(_ row: Int, _ col: Int) {
+        if editingExpression { onEditorScientific(row, col); return }
         switch (row, col) {
         case (0,0): calculator.onOpenParenthesis()
         case (0,1): calculator.onCloseParenthesis()

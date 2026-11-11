@@ -5,7 +5,7 @@ A native SwiftUI calculator adapted for Kyle from [bofeiw/ios-calculator-clone-f
 ## Layout
 
 - Four columns and five rows on iPhone Duo, instead of five columns and four rows.
-- The compact Duo reference keys remain 236 pixels across with 30-pixel gaps at 1398-pixel screen width. The grid aligns to the right with a 16-point margin rather than widening its keys. The scientific top context menu offers a persistent left-handed alignment.
+- The compact Duo reference keys remain 236 pixels across with 30-pixel gaps at 1398-pixel screen width. The grid aligns to the right with a 16-point margin rather than widening its keys. The calculator mode menu offers a persistent left-handed alignment.
 - The display moves up to make room for the added row. Backspace, AC, percent and divide occupy the top row. Sign, zero, decimal point and equals occupy the bottom row.
 - Round keys, black background, modern gray utility keys, white text and orange operators.
 - Resizes on rotation and window changes, shrinking keys only where needed to keep controls visible. The side status area is disabled, following Apple’s full-width calculator guidance.
@@ -14,11 +14,11 @@ A native SwiftUI calculator adapted for Kyle from [bofeiw/ios-calculator-clone-f
 
 Basic addition, subtraction, multiplication, division, decimal entry, sign, contextual percent, backspace, repeated equals, and copy/paste via the display's context menu. Swipe the display to delete a digit. Decimal arithmetic avoids binary floating-point artifacts such as 0.1 + 0.2.
 
-This is a separate app. It does not modify or replace Apple's Calculator binary. Scientific mode appears automatically in landscape and when the available width reaches 600 points (opened Duo); the top menu also selects Basic, Scientific, or Automatic. Long-press the basic display to select Scientific or open History. Left-handed alignment lives in the scientific top menu.
+This is a separate app. It does not modify or replace Apple's Calculator binary. Scientific mode appears automatically in landscape and when the available width reaches 600 points (opened Duo); the top menu also selects Basic or Scientific. History and calculator mode controls are visible in both modes. Left-handed alignment lives in the calculator mode menu.
 
 Scientific uses Apple's documented six-column, five-row function arrangement, stacked above the basic keypad in portrait and beside it in landscape. It includes second functions, powers and roots, trig and hyperbolic functions and their inverses, logarithms, constants, random, EE notation, memory, nested parentheses, algebraic precedence, and degree/radian selection. Prefix functions and postfix application are supported. The display previews complete expressions as you type; History retains the last 100 successful calculations on this device and can recall or clear them.
 
-Basic operations retain immediate execution and Decimal arithmetic where representable. Scientific calculations use Double precision rounded to 15 significant digits, with explicit domain/overflow errors; factorial supports nonnegative real inputs through 170 using gamma. Entry is limited to 15 digits. This is not full Apple app parity: arbitrary cursor-based expression editing, conversions, and Apple history/Notes synchronization are not included. Math Notes is intentionally excluded. No network access, advertising or external packages are used by the app.
+Basic operations retain immediate execution and Decimal arithmetic where representable. Scientific calculations use Double precision rounded to 15 significant digits, with explicit domain/overflow errors; factorial supports nonnegative real inputs through 170 using gamma. Entry is limited to 15 digits. Tap the expression or result to edit with a native caret and selection, or recall history for editing. Convert supports 15 unit categories and 31 currencies through dated ECB rates from Frankfurter. Apple history/Notes synchronization is not included. Math Notes is intentionally excluded. Currency conversion fetches public rates over HTTPS and caches them on this device; entered amounts stay on-device. The app has no advertising or external package dependencies.
 
 ## Build
 
@@ -70,3 +70,10 @@ Verification for build 3: all 23 automated tests passed in `QA/ScienceReleaseChe
 - No Math Notes implementation or public App Store submission.
 
 Build 5 verification: 47 tests passed (43 model/layout and 4 UI), with the four UI tests rerun after final display refinement. Manual Duo checks passed closed/open/landscape layouts, unclipped controls, 42 retained through transitions, second functions, context-menu handedness, history, and basic live preview. Apple processed 1.0 (5) as VALID / INTERNAL_ONLY / IN_BETA_TESTING, with auto-notification and existing Internal group membership verified. No physical-phone installation or public submission was performed. Build/release evidence is retained locally under QA/testflight-5/.
+
+## Version 1.0 (6)
+
+- Inline expression editing with native cursor movement, word selection, keypad replacement, safe parsing, live reevaluation and history recall. Parentheses, scientific operators/functions and calculator-style percentages round-trip through the parser.
+- Reference-style circular history/sidebar and calculator controls in both modes. The checked Basic/Scientific menu includes Left-handed instead of Math Notes, plus functional Convert. Landscape history opens alongside the calculator, with dated groups and edit/delete controls.
+- Convert includes Angle, Area, Currency, Data, Energy, Force, Fuel, Length, Power, Pressure, Speed, Temperature, Time, Volume and Weight. Currency uses daily ECB rates from https://api.frankfurter.dev, shows the rate date, caches prior data and clearly reports unavailability rather than inventing rates. Coverage follows the provider's 31 supported currencies; this is not Apple's currency data service.
+- The requested four-column basic Duo layout remains intentional, even though Apple's stock Duo reference uses five columns. Basic diameter and safe margins remain preserved where the viewport allows.

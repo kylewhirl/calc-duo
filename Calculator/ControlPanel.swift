@@ -21,7 +21,7 @@ struct CalculatorLayout {
     static let edgePadding: CGFloat = 16
     static let bottomPadding: CGFloat = 16
     static func usesScientificMode(_ size: CGSize) -> Bool { size.width > size.height || size.width >= 600 }
-    init(availableSize: CGSize, scientific: Bool = false) {
+    init(availableSize: CGSize, scientific: Bool = false, converting: Bool = false) {
         self.scientific = scientific
         let width = max(availableSize.width, 1), height = max(availableSize.height, 1)
         stacked = scientific && width <= height
@@ -40,10 +40,11 @@ struct CalculatorLayout {
             displayHeight = buttonHeight * 2
         } else {
             let desired = compact ? referenceWidth * 236 / 1398 : min((width - 32 - 3 * gap) / 4, 110)
-            buttonSize = max(0, min(desired, (width - 32 - 3 * gap) / 4, (height - 16 - 5.5 * gap) / 6.12))
+            let displayRatio: CGFloat = converting ? 2.2 : 1.3
+            buttonSize = max(0, min(desired, (width - 32 - 3 * gap) / 4, (height - 68 - 5.5 * gap) / (5 + displayRatio)))
             buttonHeight = buttonSize
             scientificButtonWidth = buttonSize
-            displayHeight = buttonSize * 1.12
+            displayHeight = buttonSize * displayRatio
         }
     }
 }

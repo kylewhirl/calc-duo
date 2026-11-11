@@ -212,7 +212,7 @@ final class ViewportBoundsTests: XCTestCase {
                 for scientific in [false, true] {
                     let layout = CalculatorLayout(availableSize: CGSize(width: width, height: height), scientific: scientific)
                     let totalWidth = layout.panelWidth + 32
-                    let totalHeight = layout.contentHeight + 16 + (scientific ? 52 : 0)
+                    let totalHeight = layout.contentHeight + 68
                     XCTAssertLessThanOrEqual(totalWidth, width + 0.001)
                     XCTAssertLessThanOrEqual(totalHeight, height + 0.001)
                     XCTAssertGreaterThan(layout.buttonSize, 0)
@@ -385,5 +385,168 @@ final class ScientificMemoryPreviewTests: XCTestCase {
         XCTAssertEqual(model.previewValue, "5")
         model.onMemoryAdd(); model.onAC(); model.onMemoryRecall()
         XCTAssertEqual(model.computedValue, 5)
+    }
+}
+
+final class EditableExpressionEvaluatorTests: XCTestCase {
+    private func value(_ text: String, degrees: Bool = true) throws -> Double {
+        try ExpressionEvaluator.evaluate(text, usesDegrees: degrees)
+    }
+    func testPrecedenceAssociativityAndSigns() throws {
+        for (text, expected) in [("2+3×4", 14.0), ("2^3^2", 512), ("-2^2", -4),
+                                 ("(-2)^2", 4), ("2^-2", 0.25), ("2^-2^2", 0.0625),
+                                 ("10-3-2", 5), ("24/4/2", 3), ("3!^2", 36)] {
+            XCTAssertEqual(try value(text), expected, accuracy: 1e-12, text)
+        }
+    }
+    func testNestedEditedAndPastedExpressions() throws {
+        XCTAssertEqual(try value("2(3+(4×5))"), 46)
+        XCTAssertEqual(try value("2(30+(4×5))"), 100)
+        XCTAssertEqual(try value("\n 2 × ( 3 + 4 ) \t"), 14)
+        XCTAssertEqual(try value("(2+3)(4+5)"), 45)
+        XCTAssertEqual(try value("(2)3"), 6)
+        XCTAssertEqual(try value("2π+ππ"), 2 * .pi + .pi * .pi, accuracy: 1e-12)
+        XCTAssertEqual(try value("2sin(30)"), 1, accuracy: 1e-12)
+    }
+    func testDecimalArithmeticAndFullDoubleRange() throws {
+        XCTAssertEqual(try ExpressionEvaluator.evaluateResult("0.1+0.2").formatted, "0.3")
+        XCTAssertEqual(try value("(0.1+0.2)-0.3"), 0)
+        XCTAssertEqual(try value("1e308/2"), 5e307)
+        XCTAssertEqual(try value("5e-324"), Double.leastNonzeroMagnitude)
+        let maximum = try ExpressionEvaluator.evaluateResult("1.7976931348623157e308")
+        XCTAssertEqual(try value(maximum.formatted), Double.greatestFiniteMagnitude)
+        XCTAssertEqual(try value("170!") / 7.257415615307999e306, 1, accuracy: 1e-13)
+        XCTAssertThrowsError(try value("1e309"))
+        XCTAssertThrowsError(try value("1e308*10"))
+        XCTAssertThrowsError(try value("1e-400"))
+        XCTAssertThrowsError(try value("1e-300*1e-300"))
+    }
+    func testExponentNotationAndEulerConstantAreDistinct() throws {
+        XCTAssertEqual(try value("2e"), 2 * exp(1), accuracy: 1e-12)
+        XCTAssertEqual(try value("2e3"), 2000)
+        XCTAssertEqual(try value("2E3"), 2000)
+        XCTAssertEqual(try value("2EE-3"), 0.002)
+        XCTAssertEqual(try value("2e(-1)"), -2 * exp(1), accuracy: 1e-12)
+        XCTAssertEqual(try value("exp(1)"), exp(1), accuracy: 1e-12)
+    }
+    func testLegacyExpressionLabelsAndCanonicalFunctions() throws {
+        for (text, expected) in [("2xʸ3", 8.0), ("3yˣ2", 8), ("27ʸ√x3", 3),
+                                 ("81logᵧ3", 4), ("(3)²+(2)³", 17), ("√(9)+∛(-8)", 1),
+                                 ("sin⁻¹(0.5)", 30), ("log₁₀(100)+log₂(8)", 5),
+                                 ("root(-27,3)", -3), ("reversePower(3,2)", 8),
+                                 ("logBase(81,3)", 4), ("1/(4)", 0.25), ("reciprocal(4)", 0.25),
+                                 ("pow10(2)+pow2(3)", 108)] {
+            XCTAssertEqual(try value(text), expected, accuracy: 1e-10, text)
+        }
+    }
+    func testTrigonometricAndHyperbolicModes() throws {
+        XCTAssertEqual(try value("sin(30)+cos(60)"), 1, accuracy: 1e-12)
+        XCTAssertEqual(try value("sin(pi/2)", degrees: false), 1, accuracy: 1e-12)
+        XCTAssertEqual(try value("atan(1)", degrees: false), .pi / 4, accuracy: 1e-12)
+        XCTAssertEqual(try value("asin(0.5)"), 30, accuracy: 1e-12)
+        for text in ["sinh(asinh(0.5))", "cosh(acosh(2))/4", "tanh(atanh(0.5))", "sinh(sinh⁻¹(0.5))"] {
+            XCTAssertEqual(try value(text), 0.5, accuracy: 1e-12)
+        }
+    }
+    func testFactorialGammaAndPercent() throws {
+        XCTAssertEqual(try value("0!"), 1)
+        XCTAssertEqual(try value("1.5!"), 1.329340388179137, accuracy: 1e-12)
+        XCTAssertEqual(try value("200*10%"), 20)
+        XCTAssertEqual(try value("200+10%"), 220)
+        XCTAssertEqual(try value("200-10%"), 180)
+        XCTAssertEqual(try value("200/10%"), 2000)
+        XCTAssertEqual(try value("10%"), 0.1)
+        XCTAssertEqual(try value("200+(10%)"), 220)
+        XCTAssertEqual(try value("200+(-10%)"), 180)
+        XCTAssertEqual(try value("200+10%+10%"), 242)
+        XCTAssertEqual(try value("(100+100)+10%"), 220)
+        XCTAssertEqual(try value("200+(5+5)%"), 220)
+        XCTAssertEqual(try value("200+10%*2"), 200.2)
+        XCTAssertThrowsError(try value("(-1)!"))
+        XCTAssertThrowsError(try value("171!"))
+    }
+    func testIncompleteInputIsDistinguishedFromInvalid() {
+        for text in ["", ".", "2+", "sin(", "(2+3", "2EE", "2E-", "root(27,"] {
+            XCTAssertThrowsError(try value(text)) { error in
+                XCTAssertTrue((error as? ExpressionEvaluator.EvaluationError)?.isIncomplete == true, text)
+            }
+        }
+        for text in ["1.2.3", "1 2", "2+)", "sin()", "2)", "root(1)", "sqrt(1,2)"] {
+            XCTAssertThrowsError(try value(text)) { error in
+                XCTAssertFalse((error as? ExpressionEvaluator.EvaluationError)?.isIncomplete ?? true, text)
+            }
+        }
+    }
+    func testDomainsAndUntrustedTextAreRejected() {
+        for text in ["sqrt(-1)", "ln(0)", "logBase(10,1)", "root(-4,2)", "root(4,0)",
+                     "asin(2)", "acosh(0)", "atanh(1)", "tan(90)", "1/0", "(-2)^0.5",
+                     "NaN", "Infinity", "system(1)", "__import__('os')", "2;exit()", "a=3", "1/**/2"] {
+            XCTAssertThrowsError(try value(text), text)
+        }
+    }
+    func testParserComplexityIsBoundedAndCallsAreIndependent() throws {
+        XCTAssertThrowsError(try value(String(repeating: "(", count: 200) + "1" + String(repeating: ")", count: 200)))
+        XCTAssertThrowsError(try value(String(repeating: "1+", count: 3000) + "1"))
+        _ = try? value("sin(")
+        XCTAssertEqual(try value("2+3"), 5)
+        XCTAssertEqual(try value("sin(30)"), 0.5, accuracy: 1e-12)
+    }
+}
+
+final class ModelExpressionRoundTripTests: XCTestCase {
+    func testEveryScientificFunctionOutputCanBeEditedAndReevaluated() throws {
+        for function in ScientificFunction.allCases {
+            var model = CalculatorModel()
+            model.isScientificMode = true
+            model.onPaste(function == .acosh ? "2" : "0.5")
+            model.onScientific(function)
+            XCTAssertFalse(model.isError, function.rawValue)
+            let reparsed = try ExpressionEvaluator.evaluate(model.expression, usesDegrees: model.usesDegrees)
+            XCTAssertEqual(reparsed, model.computedValue, accuracy: max(1, abs(model.computedValue)) * 1e-12, function.rawValue)
+        }
+    }
+    func testEveryBinaryOperatorOutputCanBeEditedAndReevaluated() throws {
+        for operation in ButtonType.allCases where operation.isOperation {
+            var model = CalculatorModel()
+            model.isScientificMode = true
+            model.onPaste("8"); model.onSelectOperator(operation); model.onPaste("2")
+            let source = model.expression
+            let reparsed = try ExpressionEvaluator.evaluate(source)
+            model.onCalculate()
+            XCTAssertFalse(model.isError, operation.rawValue)
+            XCTAssertEqual(reparsed, model.computedValue, accuracy: 1e-10, source)
+        }
+    }
+    func testPercentageKeyExpressionRoundTrips() throws {
+        for operation in [ButtonType.Plus, .Minus, .Multiply, .Divide] {
+            var model = CalculatorModel()
+            model.isScientificMode = true
+            model.onPaste("200"); model.onSelectOperator(operation); model.onPaste("10"); model.onPercentage()
+            let source = model.expression
+            let reparsed = try ExpressionEvaluator.evaluate(source)
+            model.onCalculate()
+            XCTAssertEqual(reparsed, model.computedValue, accuracy: 1e-10, source)
+        }
+    }
+}
+
+final class FinalEditorBoundaryTests: XCTestCase {
+    func testEditedMaximumFiniteResultRemainsValid() {
+        var model = CalculatorModel()
+        model.commitEditedExpression("1.7976931348623157e308", result: Double.greatestFiniteMagnitude)
+        XCTAssertFalse(model.isError)
+        XCTAssertEqual(model.computedValue, Double.greatestFiniteMagnitude)
+        XCTAssertTrue(Double(model.displayedValue)?.isFinite == true)
+        XCTAssertEqual(model.history.first?.result, model.entry)
+    }
+    func testConversionLayoutFitsViewports() {
+        for width in [200.0, 320, 393, 466, 600, 669, 678, 874, 951] {
+            for height in [180.0, 300, 370, 400, 466, 620, 678, 900] {
+                let layout = CalculatorLayout(availableSize: CGSize(width: width, height: height), converting: true)
+                XCTAssertLessThanOrEqual(layout.panelWidth + 32, width + 0.001)
+                XCTAssertLessThanOrEqual(layout.contentHeight + 68, height + 0.001)
+                XCTAssertGreaterThan(layout.buttonSize, 0)
+            }
+        }
     }
 }

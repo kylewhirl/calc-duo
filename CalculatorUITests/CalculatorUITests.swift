@@ -32,7 +32,7 @@ final class CalculatorUITests: XCTestCase {
                 XCTAssertEqual(frames[index].width, frames[index].height, accuracy: 1)
             }
         }
-        XCTAssertFalse(app.buttons["calculator_settings"].exists)
+        XCTAssertTrue(app.buttons["calculator_settings"].exists)
         assertKeyBounds(app)
         let first = app.buttons["key_Backspace"].frame
         let last = app.buttons["key_Divide"].frame
@@ -41,7 +41,7 @@ final class CalculatorUITests: XCTestCase {
             XCTAssertEqual(last.maxX, app.frame.maxX - 16, accuracy: 1)
         }
         app.buttons["key_Number7"].tap(); app.buttons["key_Plus"].tap(); app.buttons["key_Number5"].tap()
-        XCTAssertEqual(app.staticTexts["calculator_preview"].value as? String, "12")
+        XCTAssertEqual(app.staticTexts["calculator_display"].value as? String, "12")
         app.buttons["key_Calculate"].tap()
         XCTAssertEqual(app.staticTexts["calculator_display"].value as? String, "12")
         app.buttons["key_AC"].tap(); app.buttons["key_Number1"].tap(); app.buttons["key_Number2"].tap(); app.buttons["key_Backspace"].tap()
@@ -77,7 +77,7 @@ final class CalculatorUITests: XCTestCase {
         XCTAssertEqual(XCTWaiter.wait(for: [basicReady], timeout: 5), .completed)
         let equalsReady = XCTNSPredicateExpectation(predicate: NSPredicate(format: "hittable == true"), object: app.buttons["key_Calculate"])
         XCTAssertEqual(XCTWaiter.wait(for: [equalsReady], timeout: 5), .completed)
-        XCTAssertFalse(app.buttons["calculator_settings"].exists)
+        XCTAssertTrue(app.buttons["calculator_settings"].exists)
         assertKeyBounds(app)
         XCTAssertEqual(app.buttons["key_Backspace"].frame.minX, 16, accuracy: 1)
     }
@@ -103,9 +103,9 @@ final class CalculatorUITests: XCTestCase {
         XCTAssertEqual(app.staticTexts["calculator_display"].value as? String, "8")
         app.buttons["science_second"].tap()
         app.buttons["calculator_history"].tap()
-        XCTAssertTrue(app.navigationBars["History"].waitForExistence(timeout: 3))
-        XCTAssertTrue(app.staticTexts["14"].exists)
-        app.buttons["Done"].tap()
+        XCTAssertTrue(app.buttons["history.close"].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.buttons.matching(NSPredicate(format: "label CONTAINS %@", "equals 14")).firstMatch.exists)
+        app.buttons["history.close"].tap()
         assertKeyBounds(app)
         let shot = XCTAttachment(screenshot: XCUIScreen.main.screenshot()); shot.name = "Full scientific controls"; shot.lifetime = .keepAlways; add(shot)
     }
@@ -114,7 +114,7 @@ final class CalculatorUITests: XCTestCase {
         let app = XCUIApplication(); app.launch(); XCUIDevice.shared.orientation = .portrait
         let ready = XCTNSPredicateExpectation(predicate: NSPredicate(format: "exists == false"), object: app.buttons["science_sin"])
         XCTAssertEqual(XCTWaiter.wait(for: [ready], timeout: 5), .completed)
-        app.staticTexts["calculator_display"].press(forDuration: 1)
+        app.buttons["calculator_settings"].tap()
         app.buttons["Scientific"].tap()
         XCTAssertTrue(app.buttons["science_sin"].waitForExistence(timeout: 3))
         XCTAssertLessThan(app.buttons["science_random"].frame.maxY, app.buttons["key_Backspace"].frame.minY)
@@ -124,8 +124,73 @@ final class CalculatorUITests: XCTestCase {
         app.terminate(); app.launch(); XCUIDevice.shared.orientation = .landscapeLeft
         XCTAssertTrue(app.buttons["calculator_history"].waitForExistence(timeout: 5))
         app.buttons["calculator_history"].tap()
-        XCTAssertTrue(app.staticTexts["42"].exists)
-        app.buttons["Done"].tap()
+        XCTAssertTrue(app.buttons.matching(NSPredicate(format: "label CONTAINS %@", "equals 42")).firstMatch.exists)
+        app.buttons["history.close"].tap()
+    }
+
+    func testInlineExpressionEditing() {
+        let app = XCUIApplication(); app.launch(); XCUIDevice.shared.orientation = .landscapeLeft
+        XCTAssertTrue(app.buttons["science_sin"].waitForExistence(timeout: 5))
+        app.buttons["key_AC"].tap(); app.buttons["key_AC"].tap()
+        app.buttons["key_Number2"].tap(); app.buttons["key_Plus"].tap(); app.buttons["key_Number3"].tap(); app.buttons["key_Calculate"].tap()
+        app.staticTexts["calculator_display"].tap()
+        let editor = app.textFields["expression_editor"]
+        XCTAssertTrue(editor.waitForExistence(timeout: 3))
+        XCTAssertEqual(editor.value as? String, "2+3")
+        // Cursor begins at the end: delete just the final operand, not the whole expression.
+        app.buttons["key_Backspace"].tap(); app.buttons["key_Number4"].tap()
+        XCTAssertEqual(editor.value as? String, "2+4")
+        XCTAssertTrue(app.staticTexts["editing_preview"].label.contains("6"))
+        app.buttons["key_Calculate"].tap()
+        XCTAssertEqual(app.staticTexts["calculator_display"].value as? String, "6")
+        app.staticTexts["calculator_display"].tap()
+        XCTAssertTrue(editor.waitForExistence(timeout: 3))
+        // Tap before the expression to move the native caret, then insert at the start.
+        editor.coordinate(withNormalizedOffset: CGVector(dx: 0.02, dy: 0.5)).tap()
+        app.buttons["key_Number9"].tap()
+        XCTAssertEqual(editor.value as? String, "92+4")
+        XCTAssertTrue(app.staticTexts["editing_preview"].label.contains("96"))
+        app.buttons["key_Calculate"].tap()
+        XCTAssertEqual(app.staticTexts["calculator_display"].value as? String, "96")
+    }
+
+    func testNativeSelectionReplacement() {
+        let app = XCUIApplication(); app.launch(); XCUIDevice.shared.orientation = .landscapeLeft
+        XCTAssertTrue(app.buttons["science_sin"].waitForExistence(timeout: 5))
+        app.buttons["key_AC"].tap(); app.buttons["key_AC"].tap()
+        for digit in ["1", "2", "3", "4", "5"] { app.buttons["key_Number" + digit].tap() }
+        app.staticTexts["calculator_display"].tap()
+        let editor = app.textFields["expression_editor"]
+        XCTAssertTrue(editor.waitForExistence(timeout: 3))
+        editor.coordinate(withNormalizedOffset: CGVector(dx: 0.98, dy: 0.5)).doubleTap()
+        app.buttons["key_Number9"].tap()
+        XCTAssertEqual(editor.value as? String, "9")
+        app.buttons["key_Calculate"].tap()
+        XCTAssertEqual(app.staticTexts["calculator_display"].value as? String, "9")
+    }
+
+    func testFunctionalConvertMenu() {
+        let app = XCUIApplication(); app.launch(); XCUIDevice.shared.orientation = .portrait
+        XCTAssertTrue(app.buttons["calculator_settings"].waitForExistence(timeout: 5))
+        app.buttons["key_AC"].tap(); app.buttons["key_AC"].tap(); app.buttons["key_Number1"].tap()
+        app.buttons["calculator_settings"].tap(); app.buttons["Convert"].tap()
+        XCTAssertTrue(app.buttons["conversion.category"].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.staticTexts["conversion.output"].label.contains("3.280"))
+        app.buttons["conversion.swap"].tap()
+        XCTAssertEqual(Double(app.staticTexts["conversion.output"].label) ?? .nan, 1, accuracy: 1e-10)
+        app.buttons["conversion.category"].tap()
+        let categorySearch = app.textFields["conversion.search"]
+        categorySearch.tap(); categorySearch.typeText("Temperature")
+        let temperatureRow = app.buttons["conversion.option.Temperature"]
+        XCTAssertTrue(temperatureRow.waitForExistence(timeout: 3))
+        temperatureRow.coordinate(withNormalizedOffset: CGVector(dx: 0.3, dy: 0.5)).tap()
+        let pickedTemperature = XCTNSPredicateExpectation(predicate: NSPredicate(format: "label CONTAINS %@", "Temperature"), object: app.buttons["conversion.category"])
+        XCTAssertEqual(XCTWaiter.wait(for: [pickedTemperature], timeout: 5), .completed)
+        app.buttons["key_AC"].tap(); app.buttons["key_AC"].tap()
+        XCTAssertEqual(app.staticTexts["conversion.output"].label, "32")
+        assertKeyBounds(app)
+        app.buttons["calculator_settings"].tap(); app.buttons["Convert"].tap()
+        XCTAssertTrue(app.staticTexts["calculator_display"].exists)
     }
 
 }

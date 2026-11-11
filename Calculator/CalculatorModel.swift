@@ -95,6 +95,7 @@ struct CalculatorModel {
         }
         let expression: String
         let result: String
+        var date: Date? = Date()
     }
     private(set) var history: [HistoryEntry] = []
     private var operandExpression: String?
@@ -112,6 +113,24 @@ struct CalculatorModel {
         var copy = self
         copy.performCalculate()
         return copy.isError ? nil : copy.displayedValue
+    }
+    var displayExpression: String? {
+        if expression != entry { return expression }
+        if startsNewEntry, let last = history.first, last.result == entry { return last.expression }
+        return nil
+    }
+    var editableExpression: String {
+        if startsNewEntry, selectedOperator == nil, parents.isEmpty, frame.operations.isEmpty,
+           let last = history.first, last.result == entry { return last.expression }
+        return expression
+    }
+    mutating func commitEditedExpression(_ expression: String, result: Double) {
+        guard let normalized = scientificDecimal(result) else { fail(); return }
+        onAC()
+        setValue(normalized)
+        startsNewEntry = true
+        history.insert(HistoryEntry(expression: expression, result: entry), at: 0)
+        if history.count > 100 { history.removeLast(history.count - 100) }
     }
     mutating func restoreHistory(_ id: UUID) {
         guard let item = history.first(where: { $0.id == id }) else { return }
@@ -132,8 +151,9 @@ struct CalculatorModel {
         guard !isError else { return "Error" }
         let number = computedValue
         if number != 0 && (abs(number) >= 1e15 || abs(number) < 1e-9) {
-            return String(format: "%.10g", locale: Locale(identifier: "en_US_POSIX"), number)
+            let compact = String(format: "%.10g", locale: Locale(identifier: "en_US_POSIX"), number)
                 .lowercased().replacingOccurrences(of: "e+", with: "e")
+            return Double(compact)?.isFinite == true ? compact : String(number)
         }
         let parts = entry.split(separator: ".", omittingEmptySubsequences: false)
         let integer = String(parts.first ?? "0")
@@ -251,7 +271,8 @@ struct CalculatorModel {
     /// Keep full Double range for scientific results, Decimal arithmetic for ordinary entries.
     private func scientificDecimal(_ result: Double) -> String? {
         guard result.isFinite else { return nil }
-        return String(format: "%.15g", locale: Locale(identifier: "en_US_POSIX"), result)
+        let rounded = String(format: "%.15g", locale: Locale(identifier: "en_US_POSIX"), result)
+        return Double(rounded)?.isFinite == true ? rounded : String(result)
     }
 
     mutating func onSelectOperator(_ operation: ButtonType) {
