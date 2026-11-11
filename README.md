@@ -68,3 +68,5 @@ Verification for build 3: all 23 automated tests passed in `QA/ScienceReleaseChe
 - Preserved basic Duo key sizes, right/left alignment, safe-area clipping fixes, and scientific-only top controls. Scientific keys use capsules and adapt to portrait/landscape without dropping controls.
 - References: https://support.apple.com/en-gb/guide/iphone/iphb977c4c0e/27/ios/27 and https://ios.gadgethacks.com/how-to/20-hidden-calculator-tricks-for-your-iphone-0384162/ (second-key mapping).
 - No Math Notes implementation or public App Store submission.
+
+Build 5 verification: 47 tests passed (43 model/layout and 4 UI), with the four UI tests rerun after final display refinement. Manual Duo checks passed closed/open/landscape layouts, unclipped controls, 42 retained through transitions, second functions, context-menu handedness, history, and basic live preview. Apple processed 1.0 (5) as VALID / INTERNAL_ONLY / IN_BETA_TESTING, with auto-notification and existing Internal group membership verified. No physical-phone installation or public submission was performed. Build/release evidence is retained locally under QA/testflight-5/.
