@@ -91,8 +91,8 @@ struct CalculatorView: View {
                     } else if scientific || editingExpression {
                         scientificDisplay(layout)
                     } else {
-                        DisplayArea(eventCallback: onDisplayAreaClick, currentDisplay: calculator.displayedValue,
-                                    buttonSize: layout.buttonSize, previewValue: calculator.previewValue, expression: calculator.displayExpression, editingAction: { beginExpressionEditing(calculator.editableExpression) }, scientificAction: { modeOverride = true },
+                        DisplayArea(eventCallback: onDisplayAreaClick, currentDisplay: calculator.primaryDisplay,
+                                    buttonSize: layout.buttonSize, previewValue: calculator.livePreview, expression: calculator.completedExpression, displayHeight: layout.displayHeight, editingAction: { beginExpressionEditing(calculator.editableExpression) }, scientificAction: { modeOverride = true },
                                     historyAction: { historyUsesSidebar = wideHistory; showingHistory = true })
                     }
                     if scientific && layout.stacked {
@@ -121,6 +121,7 @@ struct CalculatorView: View {
         .background(Color.black.ignoresSafeArea()).preferredColorScheme(.dark).statusBarHidden(true)
         .onAppear {
             UIDevice.current.beginGeneratingDeviceOrientationNotifications()
+            deviceIsLandscape = UIDevice.current.orientation.isLandscape
             if let entries = try? JSONDecoder().decode([CalculatorModel.HistoryEntry].self, from: storedHistory) { calculator.loadHistory(entries) }
         }
         .onChange(of: calculator.history.map(\.id)) { _, _ in
@@ -139,29 +140,17 @@ struct CalculatorView: View {
         VStack(alignment: .trailing, spacing: 2) {
             if editingExpression {
                 ExpressionField(text: $expressionText, selection: $expressionSelection, editing: $editingExpression,
-                                fontSize: layout.buttonHeight * 0.72, onBeginEditing: {})
+                                fontSize: layout.buttonHeight * 0.78, onBeginEditing: {})
                     .frame(height: min(layout.buttonHeight, layout.displayHeight * 0.6))
                 Text(editorError ?? editingPreview)
                     .font(.system(size: min(layout.buttonHeight * 0.36, layout.displayHeight * 0.25), weight: .light))
                     .foregroundColor(editorError == nil ? .secondary : .orange)
                     .lineLimit(1).minimumScaleFactor(0.2).accessibilityIdentifier("editing_preview")
             } else {
-                if let expression = calculator.displayExpression {
-                    Text(expression).font(.system(size: layout.buttonHeight * 0.4, weight: .regular))
-                        .foregroundStyle(.secondary).lineLimit(1).minimumScaleFactor(0.2)
-                        .accessibilityIdentifier("calculator_expression")
-                        .onTapGesture { beginExpressionEditing(calculator.editableExpression) }
-                }
-                Text(calculator.previewValue ?? calculator.displayedValue)
-                    .font(.system(size: layout.buttonHeight * 0.92, weight: .light))
-                    .lineLimit(1).minimumScaleFactor(0.2).frame(maxWidth: .infinity, alignment: .trailing)
-                    .accessibilityIdentifier("calculator_display")
-                    .accessibilityLabel("Result").accessibilityValue(calculator.previewValue ?? calculator.displayedValue)
-                    .onTapGesture { beginExpressionEditing(calculator.editableExpression) }
-                    .contextMenu {
-                        Button("Copy", systemImage: "doc.on.doc") { onDisplayAreaClick(.CopyToClipBoard) }
-                        Button("Paste", systemImage: "doc.on.clipboard") { onDisplayAreaClick(.Paste) }
-                    }
+                DisplayArea(eventCallback: onDisplayAreaClick, currentDisplay: calculator.primaryDisplay,
+                            buttonSize: layout.buttonHeight, previewValue: calculator.livePreview,
+                            expression: calculator.completedExpression, displayHeight: layout.displayHeight,
+                            editingAction: { beginExpressionEditing(calculator.editableExpression) })
             }
         }
         .frame(height: layout.displayHeight, alignment: .bottomTrailing)
@@ -171,7 +160,6 @@ struct CalculatorView: View {
                     .accessibilityLabel(calculator.usesDegrees ? "Degrees" : "Radians")
             }
         }
-        .gesture(DragGesture(minimumDistance: 35).onEnded { if abs($0.translation.width) > abs($0.translation.height) { calculator.onDelete() } }, including: editingExpression ? .subviews : .all)
     }
     private func recallHistory(_ item: CalculatorModel.HistoryEntry) {
         calculator.restoreHistory(item.id)

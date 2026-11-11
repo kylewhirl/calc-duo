@@ -1,9 +1,7 @@
 // Adapted from bofeiw/ios-calculator-clone-for-ipados (CC0-1.0).
 import SwiftUI
 
-/// The compact Duo reference is 1398 px wide, with 236 px diameter keys and
-/// 30 px gaps. Keep those proportions instead of stretching four keys to fill
-/// the former five-column row. Recompute on every resize/fold/rotation.
+/// Maximize keys within the safe viewport while retaining all rows and display.
 struct CalculatorLayout {
     let buttonSize: CGFloat
     let buttonHeight: CGFloat
@@ -19,7 +17,7 @@ struct CalculatorLayout {
     var keypadHeight: CGFloat { scientific && stacked ? height * 2 + gap : height }
     var contentHeight: CGFloat { displayHeight + 1.5 * gap + keypadHeight }
     static let edgePadding: CGFloat = 16
-    static let bottomPadding: CGFloat = 16
+    static let bottomPadding: CGFloat = 4
     static func usesScientificMode(_ size: CGSize) -> Bool { size.width > size.height || size.width >= 600 }
     init(availableSize: CGSize, scientific: Bool = false, converting: Bool = false) {
         self.scientific = scientific
@@ -27,7 +25,7 @@ struct CalculatorLayout {
         stacked = scientific && width <= height
         let referenceWidth = min(width, height, 650)
         let compact = height / width < 1.65
-        let desiredGap = compact ? referenceWidth * 30 / 1398 : 10
+        let desiredGap = compact ? min(6, referenceWidth * 30 / 1398) : 8
         gap = min(desiredGap, max(0, (width - 32) / 30))
         if scientific {
             let usableWidth = max(0, width - 32)
@@ -36,12 +34,12 @@ struct CalculatorLayout {
             buttonSize = stacked ? max(0, (usableWidth - 3 * gap) / 4) : scientificButtonWidth
             let rows: CGFloat = stacked ? 10 : 5
             let room = max(0, height - Self.bottomPadding - 52)
-            buttonHeight = max(0, min(64, scientificButtonWidth, (room - (rows + 0.5) * gap) / (rows + 2)))
+            buttonHeight = max(0, min(scientificButtonWidth, (room - (rows + 0.5) * gap) / (rows + 2)))
             displayHeight = buttonHeight * 2
         } else {
-            let desired = compact ? referenceWidth * 236 / 1398 : min((width - 32 - 3 * gap) / 4, 110)
-            let displayRatio: CGFloat = converting ? 2.2 : 1.3
-            buttonSize = max(0, min(desired, (width - 32 - 3 * gap) / 4, (height - 68 - 5.5 * gap) / (5 + displayRatio)))
+            let desired = (width - 32 - 3 * gap) / 4
+            let displayRatio: CGFloat = converting ? 2.2 : 1.25
+            buttonSize = max(0, min(desired, (width - 32 - 3 * gap) / 4, (height - Self.bottomPadding - 52 - 5.5 * gap) / (5 + displayRatio)))
             buttonHeight = buttonSize
             scientificButtonWidth = buttonSize
             displayHeight = buttonSize * displayRatio

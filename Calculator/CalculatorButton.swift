@@ -13,10 +13,9 @@ struct CalculatorButton: View {
     private var isUtility: Bool { [.Backspace, .AC, .Percentage].contains(key) }
     private var isOrange: Bool { key.isOperation || key == .Calculate }
     private var background: Color {
-        if isSelected { return .white }
         return Color(hex: isOrange ? 0xff9500 : isUtility ? 0x5e5e5e : 0x333333)
     }
-    private var foreground: Color { isSelected ? Color(hex: 0xff9500) : .white }
+    private var foreground: Color { .white }
     private var systemImage: String? {
         switch key {
         case .Plus: return "plus"

@@ -20,3 +20,5 @@ QA/testflight-*/
 QA/*-attachments/
 
 QA/build*-input/
+
+QA/display-*/
