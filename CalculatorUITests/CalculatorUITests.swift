@@ -40,7 +40,9 @@ final class CalculatorUITests: XCTestCase {
             XCTAssertEqual(first.width, 236.0 / 3, accuracy: 1)
             XCTAssertEqual(last.maxX, app.frame.maxX - 16, accuracy: 1)
         }
-        app.buttons["key_Number7"].tap(); app.buttons["key_Plus"].tap(); app.buttons["key_Number5"].tap(); app.buttons["key_Calculate"].tap()
+        app.buttons["key_Number7"].tap(); app.buttons["key_Plus"].tap(); app.buttons["key_Number5"].tap()
+        XCTAssertEqual(app.staticTexts["calculator_preview"].value as? String, "12")
+        app.buttons["key_Calculate"].tap()
         XCTAssertEqual(app.staticTexts["calculator_display"].value as? String, "12")
         app.buttons["key_AC"].tap(); app.buttons["key_Number1"].tap(); app.buttons["key_Number2"].tap(); app.buttons["key_Backspace"].tap()
         XCTAssertEqual(app.staticTexts["calculator_display"].value as? String, "1")

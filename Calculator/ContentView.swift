@@ -62,13 +62,9 @@ struct CalculatorView: View {
                     if scientific {
                         scientificDisplay(layout)
                     } else {
-                        DisplayArea(eventCallback: onDisplayAreaClick, currentDisplay: calculator.displayedValue, buttonSize: layout.buttonSize)
-                            .contextMenu {
-                                Button("Copy", systemImage: "doc.on.doc") { onDisplayAreaClick(.CopyToClipBoard) }
-                                Button("Paste", systemImage: "doc.on.clipboard") { onDisplayAreaClick(.Paste) }
-                                Button("Scientific") { modeOverride = true }
-                                Button("History") { showingHistory = true }
-                            }
+                        DisplayArea(eventCallback: onDisplayAreaClick, currentDisplay: calculator.displayedValue,
+                                    buttonSize: layout.buttonSize, previewValue: calculator.previewValue, scientificAction: { modeOverride = true },
+                                    historyAction: { showingHistory = true })
                     }
                     if scientific && layout.stacked {
                         VStack(spacing: layout.gap) {
