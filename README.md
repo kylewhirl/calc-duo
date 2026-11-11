@@ -90,3 +90,12 @@ Build 6 verification: all 77 automated tests passed (70 model/parser/conversion 
 Source verification: 73 unit/model/parser/conversion/layout tests and 7 UI tests passed in native portrait/landscape batches. Long-expression scrolling preserved input and equals produced 6,175 for five 1,234 terms plus 5. The synthetic XCUIDevice rotation test did not drive this Duo simulator reliably; native Device Hub rotation/folding was checked separately: closed portrait, closed landscape, open portrait and open landscape retained `4+2 = 6`, kept controls unclipped, and restored Basic when upright/closed. Both left/right alignment and the nonsticky orange operator styling were visually checked. Internal release status is recorded separately after Apple processing.
 
 Build 7 release verification: Apple processed 1.0 (7) as VALID / INTERNAL_ONLY / IN_BETA_TESTING, with auto-notification enabled and the existing Internal group membership verified. Signed archive/export and deep strict signature checks passed. No physical-phone installation or public App Store submission was performed.
+
+## Version 1.0 (8): clear-entry and display refinements
+
+- C clears the current operand without inventing a zero: `595+65` becomes `595+`, and the next digit replaces the cleared operand. Incomplete parenthesized operands cannot be silently closed or calculated, including through memory helpers.
+- Removed numerical preview lines during entry and native editing. Equals still shows the completed expression above the result.
+- The expression uses the available safe screen width independently of the keypad and scrolls horizontally, with a leading fade when earlier content is offscreen. Landscape scientific mode reserves space for the angle-unit label.
+- Reclaims excess home-indicator spacing for larger keys while preserving a 20-point bottom clearance on the ordinary 34-point inset; larger camera insets remain untouched.
+
+Source QA: 76 unit/model/layout tests and 8 UI tests passed in native portrait/landscape batches, covering clear/replacement, full-width scrolling, scientific operations, history, native editing/selection and conversion. Closed portrait, closed landscape and expanded portrait were visually checked for clipping. The existing synthetic rotation test remains unreliable on the Duo simulator and was not counted. Internal-release status is recorded separately after Apple processing.

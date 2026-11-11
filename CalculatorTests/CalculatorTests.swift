@@ -52,6 +52,27 @@ final class CalculatorTests: XCTestCase {
         XCTAssertEqual(model.completedExpression, "2+3")
         XCTAssertEqual(model.primaryDisplay, "5")
     }
+    func testClearOperandLeavesPendingOperatorAndAcceptsReplacement() {
+        for scientific in [false, true] {
+            var model = CalculatorModel(); model.isScientificMode = scientific
+            enter("595", into: &model); model.onSelectOperator(.Plus); enter("65", into: &model)
+            model.onClearEntry(); XCTAssertEqual(model.expression, "595+")
+            model.onCalculate(); XCTAssertEqual(model.expression, "595+"); XCTAssertNil(model.completedExpression)
+            enter("7", into: &model); model.onCalculate(); XCTAssertEqual(model.displayedValue, "602")
+            model.onAC(); enter("595", into: &model); model.onSelectOperator(.Plus); enter("65", into: &model)
+            model.onClearEntry(); model.onTypeNumber(0); model.onCalculate(); XCTAssertEqual(model.displayedValue, "595")
+        }
+    }
+    func testClearInsideParenthesisDoesNotInventZero() {
+        var model = CalculatorModel(); model.isScientificMode = true
+        enter("595", into: &model); model.onSelectOperator(.Plus); model.onOpenParenthesis()
+        enter("65", into: &model); model.onClearEntry()
+        model.onCloseParenthesis(); model.onCalculate()
+        model.onMemoryAdd()
+        XCTAssertEqual(model.expression, "595+("); XCTAssertNil(model.completedExpression)
+        enter("7", into: &model); model.onCloseParenthesis(); model.onCalculate()
+        XCTAssertEqual(model.displayedValue, "602")
+    }
     func testDecimalAndTrailingZeros() {
         var model = CalculatorModel()
         enter("0.1", into: &model); model.onSelectOperator(.Plus); enter("0.2", into: &model); model.onCalculate()
@@ -106,6 +127,14 @@ final class CalculatorTests: XCTestCase {
                          (size.height - 52 - CalculatorLayout.bottomPadding - 5.5 * layout.gap) / 6.25), accuracy: 0.01)
         XCTAssertEqual(CalculatorLayout.bottomPadding, 4)
         XCTAssertLessThanOrEqual(layout.contentHeight + 52 + CalculatorLayout.bottomPadding, size.height + 0.01)
+    }
+    func testHomeIndicatorGutterReclaimsOnlyExcessNotCameraInsets() {
+        XCTAssertEqual(CalculatorLayout.bottomExtension(for: 34), 18)
+        XCTAssertEqual(CalculatorLayout.bottomExtension(for: 0), 0)
+        XCTAssertEqual(CalculatorLayout.bottomExtension(for: 82), 0)
+        let old = CalculatorLayout(availableSize: CGSize(width: 466, height: 562))
+        let expanded = CalculatorLayout(availableSize: CGSize(width: 466, height: 580))
+        XCTAssertGreaterThan(expanded.buttonSize, old.buttonSize)
     }
     func testResizingKeepsFiveRowsOnscreen() {
         for size in [CGSize(width: 393, height: 759), CGSize(width: 466, height: 620), CGSize(width: 678, height: 400), CGSize(width: 768, height: 1000)] {

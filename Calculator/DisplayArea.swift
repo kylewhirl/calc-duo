@@ -3,6 +3,11 @@ import SwiftUI
 
 enum DisplayAreaEvent { case Delete, CopyToClipBoard, Paste }
 
+private struct DisplayLeadingOffsetKey: PreferenceKey {
+    static var defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = nextValue() }
+}
+
 /// Keeps the expression readable at full size. Scrolling never deletes input.
 struct CalculatorDisplayLine: View {
     let text: String
@@ -10,6 +15,7 @@ struct CalculatorDisplayLine: View {
     let identifier: String
     var label = "Expression"
     var secondary = false
+    @State private var hasLeadingOverflow = false
     var body: some View {
         GeometryReader { geometry in
             ScrollViewReader { scroll in
@@ -18,10 +24,27 @@ struct CalculatorDisplayLine: View {
                         .foregroundStyle(secondary ? .secondary : .primary)
                         .lineLimit(1).fixedSize(horizontal: true, vertical: false)
                         .frame(minWidth: geometry.size.width, alignment: .trailing)
+                        .background {
+                            GeometryReader { content in
+                                Color.clear.preference(key: DisplayLeadingOffsetKey.self,
+                                    value: content.frame(in: .named(identifier)).minX)
+                            }
+                        }
                         .id("end")
                         .accessibilityIdentifier(identifier).accessibilityLabel(label).accessibilityValue(text)
                 }
+                .accessibilityIdentifier(identifier + "_viewport")
                 .scrollIndicators(.hidden)
+                .coordinateSpace(name: identifier)
+                .onPreferenceChange(DisplayLeadingOffsetKey.self) { hasLeadingOverflow = $0 < -1 }
+                .mask {
+                    if hasLeadingOverflow {
+                        HStack(spacing: 0) {
+                            LinearGradient(colors: [.clear, .black], startPoint: .leading, endPoint: .trailing).frame(width: 24)
+                            Rectangle().fill(.black)
+                        }
+                    } else { Rectangle().fill(.black) }
+                }
                 .defaultScrollAnchor(.trailing)
                 .onChange(of: text) { _, _ in scroll.scrollTo("end", anchor: .trailing) }
             }
@@ -33,7 +56,6 @@ struct DisplayArea: View {
     var eventCallback: (DisplayAreaEvent) -> Void
     let currentDisplay: String
     let buttonSize: CGFloat
-    var previewValue: String? = nil
     var expression: String? = nil
     var displayHeight: CGFloat? = nil
     var editingAction: (() -> Void)? = nil
@@ -48,11 +70,7 @@ struct DisplayArea: View {
             }
             CalculatorDisplayLine(text: currentDisplay, fontSize: buttonSize * 0.78,
                                   identifier: "calculator_display", label: expression == nil ? "Expression" : "Result")
-            if expression == nil, let previewValue {
-                Text("= " + previewValue).font(.system(size: buttonSize * 0.25, weight: .light))
-                    .foregroundStyle(.secondary).lineLimit(1).minimumScaleFactor(0.2)
-                    .accessibilityIdentifier("calculator_preview")
-            }
+
         }
         .frame(maxWidth: .infinity, minHeight: displayHeight ?? buttonSize * 1.25, maxHeight: displayHeight ?? buttonSize * 1.25, alignment: .bottomTrailing)
         .contentShape(Rectangle())
