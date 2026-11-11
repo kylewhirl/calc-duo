@@ -462,7 +462,13 @@ struct CalculatorModel {
     mutating func onMemorySubtract() { updateMemory(.Minus) }
     private mutating func updateMemory(_ operation: ButtonType) {
         guard !isError else { return }
-        guard let result = calculate(memory, operation, value) else { fail(); return }
+        var displayed = value
+        if isScientificMode && !startsNewEntry && (selectedOperator != nil || !parents.isEmpty) {
+            var preview = self
+            preview.performCalculate()
+            if !preview.isError { displayed = preview.value }
+        }
+        guard let result = calculate(memory, operation, displayed) else { fail(); return }
         memory = result
         replaceEntryOnDigit = true
     }

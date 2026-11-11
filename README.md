@@ -1,11 +1,11 @@
 # Calculator Duo
 
-A native SwiftUI basic calculator adapted for Kyle from [bofeiw/ios-calculator-clone-for-ipados](https://github.com/bofeiw/ios-calculator-clone-for-ipados), upstream commit `803007d`. The original project and this adaptation use CC0 1.0; see LICENSE. Original contributors: bofeiw and ayfallen.
+A native SwiftUI calculator adapted for Kyle from [bofeiw/ios-calculator-clone-for-ipados](https://github.com/bofeiw/ios-calculator-clone-for-ipados), upstream commit `803007d`. The original project and this adaptation use CC0 1.0; see LICENSE. Original contributors: bofeiw and ayfallen.
 
 ## Layout
 
 - Four columns and five rows on iPhone Duo, instead of five columns and four rows.
-- The compact Duo reference keys remain 236 pixels across with 30-pixel gaps at 1398-pixel screen width. The grid aligns to the right with a 16-point margin rather than widening its keys. A subtle settings button offers a persistent left-handed alignment.
+- The compact Duo reference keys remain 236 pixels across with 30-pixel gaps at 1398-pixel screen width. The grid aligns to the right with a 16-point margin rather than widening its keys. The scientific top context menu offers a persistent left-handed alignment.
 - The display moves up to make room for the added row. Backspace, AC, percent and divide occupy the top row. Sign, zero, decimal point and equals occupy the bottom row.
 - Round keys, black background, modern gray utility keys, white text and orange operators.
 - Resizes on rotation and window changes, shrinking keys only where needed to keep controls visible. The side status area is disabled, following Apple’s full-width calculator guidance.

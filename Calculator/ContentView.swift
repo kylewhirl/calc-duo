@@ -130,7 +130,7 @@ struct CalculatorView: View {
         NavigationStack {
             List {
                 if calculator.history.isEmpty { Text("No calculations yet").foregroundStyle(.secondary) }
-                ForEach(calculator.history.reversed()) { item in
+                ForEach(calculator.history) { item in
                     Button {
                         calculator.restoreHistory(item.id)
                         showingHistory = false

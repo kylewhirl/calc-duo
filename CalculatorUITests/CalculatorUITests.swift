@@ -108,4 +108,22 @@ final class CalculatorUITests: XCTestCase {
         let shot = XCTAttachment(screenshot: XCUIScreen.main.screenshot()); shot.name = "Full scientific controls"; shot.lifetime = .keepAlways; add(shot)
     }
 
+    func testPortraitScientificModeAndHistoryPersistence() {
+        let app = XCUIApplication(); app.launch(); XCUIDevice.shared.orientation = .portrait
+        let ready = XCTNSPredicateExpectation(predicate: NSPredicate(format: "exists == false"), object: app.buttons["science_sin"])
+        XCTAssertEqual(XCTWaiter.wait(for: [ready], timeout: 5), .completed)
+        app.staticTexts["calculator_display"].press(forDuration: 1)
+        app.buttons["Scientific"].tap()
+        XCTAssertTrue(app.buttons["science_sin"].waitForExistence(timeout: 3))
+        XCTAssertLessThan(app.buttons["science_random"].frame.maxY, app.buttons["key_Backspace"].frame.minY)
+        assertKeyBounds(app)
+        app.buttons["key_AC"].tap(); app.buttons["key_AC"].tap()
+        app.buttons["key_Number6"].tap(); app.buttons["key_Multiply"].tap(); app.buttons["key_Number7"].tap(); app.buttons["key_Calculate"].tap()
+        app.terminate(); app.launch(); XCUIDevice.shared.orientation = .landscapeLeft
+        XCTAssertTrue(app.buttons["calculator_history"].waitForExistence(timeout: 5))
+        app.buttons["calculator_history"].tap()
+        XCTAssertTrue(app.staticTexts["42"].exists)
+        app.buttons["Done"].tap()
+    }
+
 }

@@ -377,3 +377,13 @@ final class ScientificFunctionFinalRegressionTests: XCTestCase {
         m.onCalculate(); XCTAssertEqual(m.computedValue, 3)
     }
 }
+
+final class ScientificMemoryPreviewTests: XCTestCase {
+    func testMemoryStoresVisibleLiveResult() {
+        var model = CalculatorModel(); model.isScientificMode = true
+        model.onTypeNumber(2); model.onSelectOperator(.Plus); model.onTypeNumber(3)
+        XCTAssertEqual(model.previewValue, "5")
+        model.onMemoryAdd(); model.onAC(); model.onMemoryRecall()
+        XCTAssertEqual(model.computedValue, 5)
+    }
+}
