@@ -99,3 +99,5 @@ Build 7 release verification: Apple processed 1.0 (7) as VALID / INTERNAL_ONLY /
 - Reclaims excess home-indicator spacing for larger keys while preserving a 20-point bottom clearance on the ordinary 34-point inset; larger camera insets remain untouched.
 
 Source QA: 76 unit/model/layout tests and 8 UI tests passed in native portrait/landscape batches, covering clear/replacement, full-width scrolling, scientific operations, history, native editing/selection and conversion. Closed portrait, closed landscape and expanded portrait were visually checked for clipping. The existing synthetic rotation test remains unreliable on the Duo simulator and was not counted. Internal-release status is recorded separately after Apple processing.
+
+Build 8 release verification: Apple processed 1.0 (8) as VALID / INTERNAL_ONLY / IN_BETA_TESTING. Existing Internal group membership, automatic notification, archive/export signature verification and English testing notes were verified. No physical-phone installation or public App Store submission was performed.
