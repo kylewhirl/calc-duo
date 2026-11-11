@@ -103,17 +103,21 @@ struct CalculatorView: View {
     }
 
     private func scientificDisplay(_ layout: CalculatorLayout) -> some View {
-        VStack(alignment: .trailing, spacing: 2) {
-            Text(calculator.expression.isEmpty ? calculator.displayedValue : calculator.expression)
+        let hasPreview = calculator.previewValue != nil || calculator.expression != calculator.entry
+        return VStack(alignment: .trailing, spacing: 2) {
+            Text(hasPreview ? calculator.expression : calculator.displayedValue)
                 .font(.system(size: layout.buttonHeight * 0.72, weight: .light))
                 .lineLimit(1).minimumScaleFactor(0.2)
                 .frame(maxWidth: .infinity, alignment: .trailing)
-                .accessibilityIdentifier("calculator_expression")
+                .accessibilityIdentifier(hasPreview ? "calculator_expression" : "calculator_display")
+                .accessibilityValue(hasPreview ? calculator.expression : calculator.displayedValue)
+            if hasPreview {
             Text(calculator.previewValue ?? calculator.displayedValue)
                 .font(.system(size: layout.buttonHeight * 0.42, weight: .light))
                 .foregroundStyle(.secondary).lineLimit(1).minimumScaleFactor(0.2)
                 .accessibilityIdentifier("calculator_display")
                 .accessibilityLabel("Result").accessibilityValue(calculator.previewValue ?? calculator.displayedValue)
+            }
         }
         .frame(height: layout.displayHeight, alignment: .bottomTrailing)
         .contextMenu {
