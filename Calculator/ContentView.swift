@@ -43,7 +43,9 @@ struct CalculatorView: View {
             let scientific = !converting && (modeOverride ?? automatic)
             let wideHistory = geometry.size.width > geometry.size.height
             let sidebarWidth = showingHistory && wideHistory ? min(280, geometry.size.width * 0.34) : 0
-            let available = CGSize(width: geometry.size.width - sidebarWidth, height: geometry.size.height)
+            // Reclaim the excess home-indicator gutter, but never a larger camera inset.
+            let bottomExtension = CalculatorLayout.bottomExtension(for: geometry.safeAreaInsets.bottom)
+            let available = CGSize(width: geometry.size.width - sidebarWidth, height: geometry.size.height + bottomExtension)
             let layout = CalculatorLayout(availableSize: available, scientific: scientific, converting: converting)
             HStack(spacing: 0) {
                 if sidebarWidth > 0 {
@@ -92,27 +94,29 @@ struct CalculatorView: View {
                         scientificDisplay(layout)
                     } else {
                         DisplayArea(eventCallback: onDisplayAreaClick, currentDisplay: calculator.primaryDisplay,
-                                    buttonSize: layout.buttonSize, previewValue: calculator.livePreview, expression: calculator.completedExpression, displayHeight: layout.displayHeight, editingAction: { beginExpressionEditing(calculator.editableExpression) }, scientificAction: { modeOverride = true },
+                                    buttonSize: layout.buttonSize, expression: calculator.completedExpression, displayHeight: layout.displayHeight, editingAction: { beginExpressionEditing(calculator.editableExpression) }, scientificAction: { modeOverride = true },
                                     historyAction: { historyUsesSidebar = wideHistory; showingHistory = true })
                     }
-                    if scientific && layout.stacked {
-                        VStack(spacing: layout.gap) {
-                            scientificPanel(layout)
-                            ControlPanel(layout: layout, selectedOperator: calculator.selectedOperator, clearLabel: calculator.shouldClearEntry ? "C" : "AC", clickCallback: onControlPanelClick)
-                        }
-                    } else {
-                        HStack(spacing: layout.gap) {
-                            if scientific { scientificPanel(layout) }
-                            ControlPanel(layout: layout, selectedOperator: calculator.selectedOperator, clearLabel: calculator.shouldClearEntry ? "C" : "AC", clickCallback: onControlPanelClick)
+                    Group {
+                        if scientific && layout.stacked {
+                            VStack(spacing: layout.gap) {
+                                scientificPanel(layout)
+                                ControlPanel(layout: layout, selectedOperator: calculator.selectedOperator, clearLabel: calculator.shouldClearEntry ? "C" : "AC", clickCallback: onControlPanelClick)
+                            }
+                        } else {
+                            HStack(spacing: layout.gap) {
+                                if scientific { scientificPanel(layout) }
+                                ControlPanel(layout: layout, selectedOperator: calculator.selectedOperator, clearLabel: calculator.shouldClearEntry ? "C" : "AC", clickCallback: onControlPanelClick)
+                            }
                         }
                     }
+                    .frame(width: layout.panelWidth)
+                    .frame(maxWidth: .infinity, alignment: scientific ? .center : leftHanded ? .leading : .trailing)
                 }
-                .frame(width: layout.panelWidth)
-                .frame(maxWidth: .infinity, alignment: scientific ? .center : leftHanded ? .leading : .trailing)
             }
             .padding(.horizontal, CalculatorLayout.edgePadding)
             .padding(.bottom, CalculatorLayout.bottomPadding)
-            .frame(width: available.width, height: geometry.size.height, alignment: .bottom)
+            .frame(width: available.width, height: available.height, alignment: .bottom)
             }
             .onChange(of: scientific, initial: true) { _, value in calculator.isScientificMode = value }
             .onChange(of: automatic) { _, _ in modeOverride = nil }
@@ -142,17 +146,19 @@ struct CalculatorView: View {
                 ExpressionField(text: $expressionText, selection: $expressionSelection, editing: $editingExpression,
                                 fontSize: layout.buttonHeight * 0.78, onBeginEditing: {})
                     .frame(height: min(layout.buttonHeight, layout.displayHeight * 0.6))
-                Text(editorError ?? editingPreview)
-                    .font(.system(size: min(layout.buttonHeight * 0.36, layout.displayHeight * 0.25), weight: .light))
-                    .foregroundColor(editorError == nil ? .secondary : .orange)
-                    .lineLimit(1).minimumScaleFactor(0.2).accessibilityIdentifier("editing_preview")
+                if let editorError {
+                    Text(editorError).font(.system(size: layout.buttonHeight * 0.25))
+                        .foregroundColor(.orange).accessibilityIdentifier("editing_error")
+                }
             } else {
                 DisplayArea(eventCallback: onDisplayAreaClick, currentDisplay: calculator.primaryDisplay,
-                            buttonSize: layout.buttonHeight, previewValue: calculator.livePreview,
+                            buttonSize: layout.buttonHeight,
                             expression: calculator.completedExpression, displayHeight: layout.displayHeight,
                             editingAction: { beginExpressionEditing(calculator.editableExpression) })
             }
         }
+        // Keep long scientific expressions clear of the current angle-unit label.
+        .padding(.leading, layout.scientific && !layout.stacked ? 32 : 0)
         .frame(height: layout.displayHeight, alignment: .bottomTrailing)
         .overlay(alignment: .bottomLeading) {
             if layout.scientific && !layout.stacked {
@@ -171,11 +177,6 @@ struct CalculatorView: View {
                      onClear: { calculator.clearHistory() }, onClose: { showingHistory = false })
     }
 
-    private var editingPreview: String {
-        do { return "= " + (try ExpressionEvaluator.evaluateResult(expressionText, usesDegrees: calculator.usesDegrees)).formatted }
-        catch let error as ExpressionEvaluator.EvaluationError { return error.isIncomplete ? "…" : "Error" }
-        catch { return "Error" }
-    }
     private func beginExpressionEditing(_ text: String) {
         expressionText = text
         expressionSelection = NSRange(location: text.utf16.count, length: 0)

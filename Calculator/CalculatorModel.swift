@@ -297,6 +297,8 @@ struct CalculatorModel {
     }
 
     mutating func onCalculate() {
+        // Clearing an operand leaves an incomplete expression, not an implicit zero.
+        guard !(entryIsEmpty && (selectedOperator != nil || !parents.isEmpty)) else { return }
         let original: String
         if selectedOperator == nil, parents.isEmpty, frame.operations.isEmpty,
            let operation = repeatOperator, let right = repeatOperand {
@@ -314,7 +316,7 @@ struct CalculatorModel {
         groupJustClosed = false
     }
     private mutating func performCalculate() {
-        guard !isError else { return }
+        guard !isError, !(entryIsEmpty && (selectedOperator != nil || !parents.isEmpty)) else { return }
         guard computedValue.isFinite else { fail(); return }
         if !parents.isEmpty || !frame.operations.isEmpty {
             let hadParentheses = !parents.isEmpty
@@ -483,7 +485,8 @@ struct CalculatorModel {
         if isError { onAC(); return }
         entry = "0"
         operandExpression = nil
-        startsNewEntry = false
+        startsNewEntry = selectedOperator != nil || !parents.isEmpty
+        entryIsEmpty = true
         replaceEntryOnDigit = false
         repeatOperator = nil
         repeatOperand = nil
@@ -573,7 +576,7 @@ struct CalculatorModel {
     }
     mutating func onCloseParenthesis() {
         completedExpression = nil
-        guard !isError, !parents.isEmpty else { return }
+        guard !isError, !parents.isEmpty, !entryIsEmpty else { return }
         let innerExpression = frame.expression + (operandExpression ?? entry)
         let function = frame.function
         frame.values.append(value)

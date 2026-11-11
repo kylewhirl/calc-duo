@@ -42,7 +42,7 @@ final class CalculatorUITests: XCTestCase {
         }
         app.buttons["key_Number7"].tap(); app.buttons["key_Plus"].tap(); app.buttons["key_Number5"].tap()
         XCTAssertEqual(app.staticTexts["calculator_display"].value as? String, "7+5")
-        XCTAssertEqual(app.staticTexts["calculator_preview"].label, "= 12")
+        XCTAssertFalse(app.staticTexts["calculator_preview"].exists)
         XCTAssertFalse(app.staticTexts["calculator_expression"].exists)
         app.buttons["key_Calculate"].tap()
         XCTAssertEqual(app.staticTexts["calculator_display"].value as? String, "12")
@@ -50,6 +50,20 @@ final class CalculatorUITests: XCTestCase {
         XCTAssertEqual(app.staticTexts["calculator_display"].value as? String, "1")
         app.buttons["key_AC"].tap()
         let attachment = XCTAttachment(screenshot: app.screenshot()); attachment.name = "Calculator Duo four-column layout"; attachment.lifetime = .keepAlways; add(attachment)
+    }
+    func testClearOperandLeavesPendingExpressionWithoutPreview() {
+        let app = XCUIApplication(); app.launch(); XCUIDevice.shared.orientation = .portrait
+        app.buttons["key_AC"].tap(); app.buttons["key_AC"].tap()
+        for digit in ["5", "9", "5"] { app.buttons["key_Number" + digit].tap() }
+        app.buttons["key_Plus"].tap()
+        app.buttons["key_Number6"].tap(); app.buttons["key_Number5"].tap()
+        XCTAssertEqual(app.staticTexts["calculator_display"].value as? String, "595+65")
+        XCTAssertFalse(app.staticTexts["calculator_preview"].exists)
+        app.buttons["key_AC"].tap()
+        XCTAssertEqual(app.staticTexts["calculator_display"].value as? String, "595+")
+        app.buttons["key_Number7"].tap(); app.buttons["key_Calculate"].tap()
+        XCTAssertEqual(app.staticTexts["calculator_display"].value as? String, "602")
+        assertKeyBounds(app)
     }
     func testLongExpressionScrollPreservesInput() {
         let app = XCUIApplication(); app.launchArguments = ["-leftHandedLayout", "NO"]; app.launch()
@@ -60,6 +74,9 @@ final class CalculatorUITests: XCTestCase {
             app.buttons["key_Plus"].tap()
         }
         app.buttons["key_Number5"].tap()
+        let viewport = app.scrollViews["calculator_display_viewport"].frame
+        XCTAssertEqual(viewport.minX, app.frame.minX + 16, accuracy: 1)
+        XCTAssertEqual(viewport.maxX, app.frame.maxX - 16, accuracy: 1)
         let expected = "1234+1234+1234+1234+1234+5"
         let display = app.staticTexts["calculator_display"]
         XCTAssertEqual(display.value as? String, expected)
@@ -81,9 +98,9 @@ final class CalculatorUITests: XCTestCase {
         app.buttons["key_AC"].tap()
         app.buttons["key_Number3"].tap(); app.buttons["key_Number0"].tap()
         app.buttons["science_sin"].tap()
-        XCTAssertEqual(app.staticTexts["calculator_preview"].label, "= 0.5")
+        XCTAssertFalse(app.staticTexts["calculator_preview"].exists)
         app.buttons["science_square"].tap()
-        XCTAssertEqual(app.staticTexts["calculator_preview"].label, "= 0.25")
+        XCTAssertFalse(app.staticTexts["calculator_preview"].exists)
         app.buttons["angle_unit"].tap()
         XCTAssertEqual(app.buttons["angle_unit"].label, "Deg")
         app.buttons["angle_unit"].tap()
@@ -110,7 +127,7 @@ final class CalculatorUITests: XCTestCase {
         app.buttons["key_Number2"].tap(); app.buttons["key_Plus"].tap()
         app.buttons["key_Number3"].tap(); app.buttons["key_Multiply"].tap(); app.buttons["key_Number4"].tap()
         XCTAssertEqual(app.staticTexts["calculator_display"].value as? String, "2+3×4")
-        XCTAssertEqual(app.staticTexts["calculator_preview"].label, "= 14")
+        XCTAssertFalse(app.staticTexts["calculator_preview"].exists)
         app.buttons["key_Calculate"].tap()
         app.buttons["science_memory_add"].tap()
         app.buttons["key_AC"].tap(); app.buttons["key_AC"].tap()
@@ -122,7 +139,7 @@ final class CalculatorUITests: XCTestCase {
         XCTAssertEqual(app.staticTexts["calculator_display"].value as? String, "2e3")
         app.buttons["key_AC"].tap(); app.buttons["key_AC"].tap()
         app.buttons["key_Number3"].tap(); app.buttons["science_second"].tap(); app.buttons["science_pow10"].tap()
-        XCTAssertEqual(app.staticTexts["calculator_preview"].label, "= 8")
+        XCTAssertFalse(app.staticTexts["calculator_preview"].exists)
         app.buttons["science_second"].tap()
         app.buttons["calculator_history"].tap()
         XCTAssertTrue(app.buttons["history.close"].waitForExistence(timeout: 3))
@@ -162,7 +179,7 @@ final class CalculatorUITests: XCTestCase {
         // Cursor begins at the end: delete just the final operand, not the whole expression.
         app.buttons["key_Backspace"].tap(); app.buttons["key_Number4"].tap()
         XCTAssertEqual(editor.value as? String, "2+4")
-        XCTAssertTrue(app.staticTexts["editing_preview"].label.contains("6"))
+        XCTAssertFalse(app.staticTexts["editing_preview"].exists)
         app.buttons["key_Calculate"].tap()
         XCTAssertEqual(app.staticTexts["calculator_display"].value as? String, "6")
         app.staticTexts["calculator_display"].tap()
@@ -171,7 +188,7 @@ final class CalculatorUITests: XCTestCase {
         editor.coordinate(withNormalizedOffset: CGVector(dx: 0.02, dy: 0.5)).tap()
         app.buttons["key_Number9"].tap()
         XCTAssertEqual(editor.value as? String, "92+4")
-        XCTAssertTrue(app.staticTexts["editing_preview"].label.contains("96"))
+        XCTAssertFalse(app.staticTexts["editing_preview"].exists)
         app.buttons["key_Calculate"].tap()
         XCTAssertEqual(app.staticTexts["calculator_display"].value as? String, "96")
     }

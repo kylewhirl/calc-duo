@@ -18,6 +18,9 @@ struct CalculatorLayout {
     var contentHeight: CGFloat { displayHeight + 1.5 * gap + keypadHeight }
     static let edgePadding: CGFloat = 16
     static let bottomPadding: CGFloat = 4
+    static func bottomExtension(for safeInset: CGFloat) -> CGFloat {
+        safeInset <= 40 ? max(0, safeInset - 16) : 0
+    }
     static func usesScientificMode(_ size: CGSize) -> Bool { size.width > size.height || size.width >= 600 }
     init(availableSize: CGSize, scientific: Bool = false, converting: Bool = false) {
         self.scientific = scientific
