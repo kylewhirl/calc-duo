@@ -96,6 +96,30 @@ final class CalculatorTests: XCTestCase {
         XCTAssertEqual(model.displayedValue, "2")
         XCTAssertNil(model.selectedOperator)
     }
+    func testBackspaceLastOperandLeavesEmptyEntry() {
+        for scientific in [false, true] {
+            var model = CalculatorModel(); model.isScientificMode = scientific
+            enter("7", into: &model); model.onSelectOperator(.Plus)
+            enter("76", into: &model); model.onSelectOperator(.Plus)
+            enter("71", into: &model)
+            model.onDelete(); XCTAssertEqual(model.primaryDisplay, "7+76+7")
+            model.onDelete(); XCTAssertEqual(model.primaryDisplay, "7+76+")
+            model.onDelete(); XCTAssertEqual(model.primaryDisplay, "7+76+")
+            model.onCalculate(); XCTAssertNil(model.completedExpression)
+            enter("2", into: &model); model.onCalculate()
+            XCTAssertEqual(model.displayedValue, "85")
+        }
+    }
+    func testBackspaceInsideParenthesisLeavesEmptyEntry() {
+        var model = CalculatorModel(); model.isScientificMode = true
+        enter("7", into: &model); model.onSelectOperator(.Plus); model.onOpenParenthesis()
+        enter("1", into: &model); model.onDelete()
+        XCTAssertEqual(model.expression, "7+(")
+        model.onCloseParenthesis(); model.onCalculate()
+        XCTAssertNil(model.completedExpression)
+        model.onTypeNumber(0); model.onCloseParenthesis(); model.onCalculate()
+        XCTAssertEqual(model.displayedValue, "7")
+    }
     func testErrorRecovery() {
         var model = CalculatorModel()
         enter("8", into: &model); model.onSelectOperator(.Divide); enter("0", into: &model); model.onCalculate()

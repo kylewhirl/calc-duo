@@ -15,6 +15,8 @@ struct CalculatorDisplayLine: View {
     let identifier: String
     var label = "Expression"
     var secondary = false
+    var showsResult = false
+    private var scrollAnchor: UnitPoint { showsResult ? .leading : .trailing }
     @State private var hasLeadingOverflow = false
     var body: some View {
         GeometryReader { geometry in
@@ -45,8 +47,9 @@ struct CalculatorDisplayLine: View {
                         }
                     } else { Rectangle().fill(.black) }
                 }
-                .defaultScrollAnchor(.trailing)
-                .onChange(of: text) { _, _ in scroll.scrollTo("end", anchor: .trailing) }
+                .defaultScrollAnchor(scrollAnchor)
+                .onChange(of: text) { _, _ in scroll.scrollTo("end", anchor: scrollAnchor) }
+                .onChange(of: showsResult) { _, _ in scroll.scrollTo("end", anchor: scrollAnchor) }
             }
         }.frame(height: fontSize * 1.2)
     }
@@ -69,7 +72,8 @@ struct DisplayArea: View {
                                       identifier: "calculator_expression", secondary: true)
             }
             CalculatorDisplayLine(text: currentDisplay, fontSize: buttonSize * 0.78,
-                                  identifier: "calculator_display", label: expression == nil ? "Expression" : "Result")
+                                  identifier: "calculator_display", label: expression == nil ? "Expression" : "Result",
+                                  showsResult: expression != nil)
 
         }
         .frame(maxWidth: .infinity, minHeight: displayHeight ?? buttonSize * 1.25, maxHeight: displayHeight ?? buttonSize * 1.25, alignment: .bottomTrailing)

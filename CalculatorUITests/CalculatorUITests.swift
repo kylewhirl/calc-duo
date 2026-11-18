@@ -87,6 +87,36 @@ final class CalculatorUITests: XCTestCase {
         XCTAssertEqual(display.value as? String, "6,175")
         XCTAssertEqual(app.staticTexts["calculator_expression"].value as? String, expected)
     }
+    func testRepeatingDecimalStartsAtLeadingDigitAndStillScrolls() {
+        let app = XCUIApplication(); app.launch()
+        app.buttons["key_AC"].tap(); app.buttons["key_AC"].tap()
+        app.buttons["key_Number1"].tap(); app.buttons["key_Divide"].tap()
+        app.buttons["key_Number3"].tap(); app.buttons["key_Calculate"].tap()
+        let display = app.staticTexts["calculator_display"]
+        let viewport = app.scrollViews["calculator_display_viewport"]
+        XCTAssertTrue((display.value as? String ?? "").hasPrefix("0.333"))
+        XCTAssertEqual(display.frame.minX, viewport.frame.minX, accuracy: 2)
+        let shot = XCTAttachment(screenshot: app.screenshot())
+        shot.name = "Repeating decimal starts at first digit"; shot.lifetime = .keepAlways; add(shot)
+        let result = display.value as? String
+        viewport.swipeLeft()
+        XCTAssertLessThan(display.frame.minX, viewport.frame.minX - 2)
+        XCTAssertEqual(display.value as? String, result)
+        for _ in 0..<3 { viewport.swipeRight() }
+        XCTAssertEqual(display.frame.minX, viewport.frame.minX, accuracy: 2)
+    }
+    func testDeletingFinalOperandDoesNotInsertZero() {
+        let app = XCUIApplication(); app.launch()
+        app.buttons["key_AC"].tap(); app.buttons["key_AC"].tap()
+        for key in ["Number7", "Plus", "Number7", "Number6", "Plus", "Number7", "Number1", "Backspace", "Backspace"] {
+            app.buttons["key_" + key].tap()
+        }
+        XCTAssertEqual(app.staticTexts["calculator_display"].value as? String, "7+76+")
+        app.buttons["key_Calculate"].tap()
+        XCTAssertEqual(app.staticTexts["calculator_display"].value as? String, "7+76+")
+        app.buttons["key_Number2"].tap(); app.buttons["key_Calculate"].tap()
+        XCTAssertEqual(app.staticTexts["calculator_display"].value as? String, "85")
+    }
     func testRotationAndRepeatedClear() {
         let app = XCUIApplication(); app.launchArguments = ["-leftHandedLayout", "NO"]; app.launch()
         XCUIDevice.shared.orientation = .portrait

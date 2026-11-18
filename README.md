@@ -101,3 +101,9 @@ Build 7 release verification: Apple processed 1.0 (7) as VALID / INTERNAL_ONLY /
 Source QA: 76 unit/model/layout tests and 8 UI tests passed in native portrait/landscape batches, covering clear/replacement, full-width scrolling, scientific operations, history, native editing/selection and conversion. Closed portrait, closed landscape and expanded portrait were visually checked for clipping. The existing synthetic rotation test remains unreliable on the Duo simulator and was not counted. Internal-release status is recorded separately after Apple processing.
 
 Build 8 release verification: Apple processed 1.0 (8) as VALID / INTERNAL_ONLY / IN_BETA_TESTING. Existing Internal group membership, automatic notification, archive/export signature verification and English testing notes were verified. No physical-phone installation or public App Store submission was performed.
+
+## Version 1.0 (9): result scrolling and backspace
+
+- Completed results start at their first digit, including repeating decimals, while remaining horizontally scrollable. Expressions still follow the newest input at the right edge.
+- Deleting the last digit of an operand leaves the pending expression intact (`7+76+71` becomes `7+76+`), rather than inserting `0`. Equals waits for replacement input; explicitly typing zero remains supported.
+- Verified 78 unit/model/parser/conversion/layout tests and three targeted UI regressions on the iPhone Duo simulator. UI checks cover the exact deletion example, long-expression scrolling, and first-digit result visibility with manual scrolling in both directions. The simulator result screenshot was visually inspected. Signed archive/export and strict signature verification passed. Physical-phone installation is not verified.

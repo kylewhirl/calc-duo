@@ -390,7 +390,10 @@ struct CalculatorModel {
             if entry.hasSuffix("e") { entry.removeLast() }
         } else {
             entry.removeLast()
-            if entry.isEmpty || entry == "-" { entry = "0" }
+            if entry.isEmpty || entry == "-" {
+                onClearEntry()
+                return
+            }
         }
         startsNewEntry = false
         repeatOperator = nil
